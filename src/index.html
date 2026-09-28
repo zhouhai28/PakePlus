@@ -18,7 +18,7 @@
             padding: 0;
             height: 100%;
             width: 100%;
-            background: #f0f2f5;  /* 兜底背景色，避免纯白 */
+            background: #f0f2f5;
             font-family: "Microsoft YaHei", Arial, sans-serif;
             overflow: hidden;
         }
@@ -126,7 +126,7 @@
             height: calc(100vh - 44px);
             width: 100%;
             overflow: hidden;
-            background: #e8e8e8;  /* 兜底背景 */
+            background: #e8e8e8;
         }
         #map {
             position: absolute;
@@ -547,6 +547,16 @@
             margin-top: 12px;
             min-height: 18px;
         }
+        .path-config-hint {
+            color: #fa8c16;
+            font-size: 12px;
+            margin-top: 8px;
+            line-height: 1.5;
+            padding: 6px 8px;
+            background: #fff7e6;
+            border-left: 3px solid #fa8c16;
+            border-radius: 2px;
+        }
 
         /* 【新增】启动失败提示层 */
         #bootError {
@@ -680,7 +690,7 @@
         <div id="controls">
              <button class="btn" id="mapPathBtn" title="重新配置电子地图文件夹">地图路径</button>
             <button class="btn" id="docPathBtn" title="重新配置文档存储文件夹">文档路径</button> 
-           <button class="btn" id="selectFileBtn">选择文件</button>
+           <button class="btn" id="selectFileBtn" title="重新配置数据源">数据路径</button>
             <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none;" />
 
 
@@ -688,7 +698,7 @@
                 <span>光缆</span>
                 <span class="arrow">▼</span>
                 <div class="dropdown-content" id="dropdownContent">
-                    <input type="text" class="search-box" id="searchBox" placeholder="搜索光缆名称..." />
+                    <input type="text" class="search-box" id="searchBox" placeholder="搜索光缆或管井名称..." />
                     <div class="panel-title">显示/颜色</div>
                     <div id="routeControls"></div>
                 </div>
@@ -703,7 +713,7 @@
             <button class="btn" id="highlightBtn">突显</button>
             <button class="btn" id="printBtn">打印</button>
             <button class="btn" id="refreshBtn">刷新</button>
-            <button class="btn" id="fullscreenBtn">⛶ 全屏</button>
+            <button class="btn" id="fullscreenBtn"> 全屏</button>
         </div>
 
         <div id="totalLengthDisplay"></div>
@@ -732,21 +742,21 @@
 
         <div id="pathConfigOverlay">
             <div id="pathConfigDialog">
-                <h3 id="pathConfigTitle">请选择文件夹</h3>
+                <h3 id="pathConfigTitle">请选择文件</h3>
                 <p id="pathConfigDesc"></p>
                 <div id="pathConfigDisplay">尚未选择</div>
                 <div class="path-config-btns">
-                    <button id="pathConfigSelectBtn">选择文件夹</button>
+                    <button id="pathConfigSelectBtn">选择文件</button>
                     <button id="pathConfigConfirmBtn" disabled>确认</button>
                 </div>
                 <div id="pathConfigError" class="path-config-error"></div>
+                <div id="pathConfigHint" class="path-config-hint" style="display:none;"></div>
             </div>
         </div>
     </div>
 
     <script>
         // ==================== 【新增】全局错误捕获 ====================
-        // 在任何代码执行前捕获异常，避免整个页面白屏
         (function setupGlobalErrorHandler() {
             function showBootError(msg) {
                 try {
@@ -757,14 +767,12 @@
                         el.classList.add('show');
                     }
                 } catch (e) {
-                    // 兜底
                     console.error('无法显示错误信息:', e);
                 }
             }
 
             window.addEventListener('error', function(e) {
                 console.error('全局错误:', e.message, e.filename, e.lineno);
-                // 只在初始化阶段弹错误，避免运行中偶发错误打断使用
                 if (!window.__appBooted) {
                     showBootError(e.message + '\n位置: ' + e.filename + ':' + e.lineno);
                 }
@@ -777,7 +785,6 @@
                 }
             });
 
-            // 5 秒后仍未完成启动，提示用户
             setTimeout(function() {
                 if (!window.__appBooted) {
                     const mapEl = document.getElementById('map');
@@ -799,7 +806,7 @@
         const MID_LABEL_FONT_SIZE = 13;
         const A3_RATIO = 420 / 297;
 
-        const MIN_ZOOM = 8;
+        const MIN_ZOOM = 7;
         const MAX_ZOOM = 18;
         const WHITE_BG_MAX_ZOOM = 20;
 
@@ -827,6 +834,8 @@
 
         let drawnNodeLabelKeys = new Set();
         let midLabelPlacementCache = new Map();
+        // 【改进】缓存容器尺寸，避免频繁调用 map.getSize()
+        let cachedContainerSize = { x: 0, y: 0 };
 
         let routeClickTimer = null;
         let endpointClickTimer = null;
@@ -870,6 +879,16 @@
             } catch (e) {}
             return false;
         }
+
+        // 【新增】判断是否为纯浏览器环境（无法访问本地文件系统）
+        function isBrowserEnv() {
+            return !isTauriEnv() && !isElectronEnv();
+        }
+
+        // 【新增】浏览器环境能力提示文案
+        const BROWSER_ENV_HINT = '注意：当前运行在浏览器环境中，无法直接读取本地文件夹的完整路径。\n' +
+            '地图与文档功能需要桌面客户端（Tauri / Electron）才能正常使用。\n' +
+            '如需在浏览器中临时体验，可通过“数据路径”按钮上传 Excel 文件。';
 
         // ==================== 通用：打开原生选择对话框 ====================
         async function openNativeDialog(type, options) {
@@ -1196,11 +1215,13 @@
             const errorEl = document.getElementById('pathConfigError');
             const confirmBtn = document.getElementById('pathConfigConfirmBtn');
             const selectBtn = document.getElementById('pathConfigSelectBtn');
+            // 【新增】浏览器环境提示
+            const hintEl = document.getElementById('pathConfigHint');
 
             if (type === 'map') {
                 titleEl.textContent = '请选择电子地图文件夹';
                 descEl.textContent = '软件需要“roadmap”电子地图文件夹才能正常运行。\n' +
-                    '请选择包含“roadmap”子文件夹的上级目录（即 roadmap 的父目录），或直接选择 roadmap 文件夹本身。';
+                    '请直接选择 roadmap 文件夹本身。';
                 selectBtn.textContent = '选择文件夹';
             } else if (type === 'doc') {
                 titleEl.textContent = '请选择文档存储文件夹';
@@ -1218,6 +1239,18 @@
             errorEl.textContent = message || '';
             confirmBtn.disabled = true;
             window.__pendingPath = null;
+
+            // 【新增】浏览器环境下，地图/文档路径功能受限，给出明确提示
+            if (hintEl) {
+                if (isBrowserEnv() && (type === 'map' || type === 'doc')) {
+                    hintEl.textContent = BROWSER_ENV_HINT;
+                    hintEl.style.display = 'block';
+                } else {
+                    hintEl.textContent = '';
+                    hintEl.style.display = 'none';
+                }
+            }
+
             overlay.classList.add('show');
         }
 
@@ -1568,9 +1601,9 @@
             const LABEL_H = estimateLabelHeight(fontSize);
 
             const curr = map.latLngToContainerPoint([point.lat, point.lng]);
-            const containerSize = map.getSize();
-            const W = containerSize.x;
-            const H = containerSize.y;
+            // 【改进】使用缓存的容器尺寸
+            const W = cachedContainerSize.x;
+            const H = cachedContainerSize.y;
 
             const segs = [];
             if (idx > 0) {
@@ -1647,13 +1680,20 @@
                 canvasRenderer = L.canvas({ padding: 0.5 });
                 tileLayer = null;
 
+                // 【改进】初始化容器尺寸缓存
+                const initSize = map.getSize();
+                cachedContainerSize = { x: initSize.x, y: initSize.y };
+
                 map.on('click', function() {
                     if (activeRouteIds.size > 0) {
                         removeAllNodes();
                     }
                 });
 
+                // 【改进】zoomend / moveend / resize 时更新尺寸缓存并清理缓存
                 map.on('zoomend', function() {
+                    const sz = map.getSize();
+                    cachedContainerSize = { x: sz.x, y: sz.y };
                     midLabelPlacementCache.clear();
                     if (showLength) {
                         redrawLengthLabels();
@@ -1661,6 +1701,14 @@
                 });
 
                 map.on('moveend', function() {
+                    const sz = map.getSize();
+                    cachedContainerSize = { x: sz.x, y: sz.y };
+                    midLabelPlacementCache.clear();
+                });
+
+                map.on('resize', function() {
+                    const sz = map.getSize();
+                    cachedContainerSize = { x: sz.x, y: sz.y };
                     midLabelPlacementCache.clear();
                 });
 
@@ -1669,10 +1717,11 @@
                 setTimeout(function() {
                     try {
                         map.invalidateSize({ animate: false, pan: false });
+                        const sz = map.getSize();
+                        cachedContainerSize = { x: sz.x, y: sz.y };
                         initRoadmapPath();
                         initDocPath();
                         initExcelPath();
-                        // 标记启动成功
                         window.__appBooted = true;
                     } catch (e) {
                         console.error('初始化路径失败:', e);
@@ -1835,6 +1884,20 @@
             updateModuleCountDisplay();
         }
 
+        // 【改进】生成稳定的线段 key（数值编码，减少字符串拼接开销）
+        function makeSegmentKey(p1, p2) {
+            // 用 lat/lng 各保留 6 位小数的整数拼接，比 toFixed 字符串拼接更快
+            const la1 = Math.round(p1.lat * 1e6);
+            const lo1 = Math.round(p1.lng * 1e6);
+            const la2 = Math.round(p2.lat * 1e6);
+            const lo2 = Math.round(p2.lng * 1e6);
+            // 按字典序排列两端点，保证无向性
+            if (la1 < la2 || (la1 === la2 && lo1 <= lo2)) {
+                return la1 + '_' + lo1 + '_' + la2 + '_' + lo2;
+            }
+            return la2 + '_' + lo2 + '_' + la1 + '_' + lo1;
+        }
+
         function drawRoutesAndNodes() {
             const visibleIds = Object.keys(allRoutesData).filter(id => routeVisibility[id] === true);
             if (visibleIds.length === 0) {
@@ -1862,9 +1925,7 @@
                 for (let i = 0; i < points.length - 1; i++) {
                     const p1 = points[i];
                     const p2 = points[i + 1];
-                    const k1 = p1.lat.toFixed(6) + ',' + p1.lng.toFixed(6);
-                    const k2 = p2.lat.toFixed(6) + ',' + p2.lng.toFixed(6);
-                    const key = k1 < k2 ? k1 + '|' + k2 : k2 + '|' + k1;
+                    const key = makeSegmentKey(p1, p2);
 
                     let routeMap = segMap.get(key);
                     if (!routeMap) {
@@ -2012,7 +2073,7 @@
                         point._refPoint = endpointIdx === 0 ? secondPoint : secondLastPoint;
                         point._routeId = info.routeId;
                         point._filename = info.filename;
-                        addEndpointLabel(point, endpointIdx === 0 ? '🚀 ' : '🏁 ', info.color);
+                        addEndpointLabel(point,'', info.color);
                     });
                 });
             }
@@ -2047,9 +2108,7 @@
                     const p2 = pts[i+1];
                     const dist = calcDistance(p1.lat, p1.lng, p2.lat, p2.lng);
                     const distText = dist.toFixed(2) + ' km';
-                    const k1 = p1.lat.toFixed(6) + ',' + p1.lng.toFixed(6);
-                    const k2 = p2.lat.toFixed(6) + ',' + p2.lng.toFixed(6);
-                    const segKey = k1 < k2 ? k1 + '|' + k2 : k2 + '|' + k1;
+                    const segKey = makeSegmentKey(p1, p2);
                     if (drawnLengthLabelKeys.has(segKey)) continue;
                     drawnLengthLabelKeys.add(segKey);
 
@@ -2083,6 +2142,7 @@
             });
         }
 
+        // 【修复】修正变量名拼写错误：nodaddeLat -> nodeLat
         function getEndpointLabelDirection(nodeLat, nodeLng, refLat, refLng) {
             const dLat = refLat - nodeLat;
             const dLng = refLng - nodeLng;
@@ -2208,9 +2268,7 @@
                     const dist = calcDistance(p1.lat, p1.lng, p2.lat, p2.lng);
                     const distText = dist.toFixed(2) + ' km';
 
-                    const k1 = p1.lat.toFixed(6) + ',' + p1.lng.toFixed(6);
-                    const k2 = p2.lat.toFixed(6) + ',' + p2.lng.toFixed(6);
-                    const segKey = k1 < k2 ? k1 + '|' + k2 : k2 + '|' + k1;
+                    const segKey = makeSegmentKey(p1, p2);
                     if (drawnCadKeys.has(segKey)) continue;
                     drawnCadKeys.add(segKey);
 
@@ -2469,11 +2527,12 @@
             return [marker, labelMarker];
         }
 
+        // 【改进】addLegend 改为实际可见的图例（原来被 CSS 隐藏，现启用）
         function addLegend(items) {
             if (items.length === 0) return;
             const legend = L.control({ position: 'bottomright' });
             legend.onAdd = function() {
-                const div = L.DomUtil.create('div', 'legend');
+                const div = L.DomUtil.create('div', 'legend-visible');
                 div.innerHTML = '<strong>光缆路由</strong>';
                 items.forEach(item => {
                     div.innerHTML += '<div class="legend-item"><span class="legend-color" style="background:' +
@@ -2836,7 +2895,6 @@
         }
 
         // ==================== 事件绑定 ====================
-        // 用 DOMContentLoaded 确保元素已就绪
         function bindUIEvents() {
             const trigger = document.getElementById('dropdownTrigger');
             const content = document.getElementById('dropdownContent');
@@ -3042,6 +3100,7 @@
         }
 
         // ==================== 打印 ====================
+        // 【改进】用 Promise 链 + map 事件替代固定延时，提高时序健壮性
         function doPrint() {
             const wasFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
 
@@ -3079,6 +3138,7 @@
                 bottom: cadTitleBlock.style.bottom, display: cadTitleBlock.style.display
             };
 
+            // 切换到打印布局
             mapEl.style.position = '';
             mapEl.style.top = '';
             mapEl.style.left = '';
@@ -3118,13 +3178,35 @@
                 map.setMaxZoom(MAX_ZOOM);
             }
 
-            map.invalidateSize({ animate: false, pan: false });
-            if (allPts.length > 0) {
-                map.fitBounds(L.latLngBounds(allPts), {
-                    paddingTopLeft: [60, 60],
-                    paddingBottomRight: [60, 60],
-                    animate: false,
-                    maxZoom: printMaxZoom
+            // 【改进】用 Promise 封装 fitBounds 完成等待，替代固定延时
+            function waitForMapSettled(timeoutMs) {
+                return new Promise(function(resolve) {
+                    let done = false;
+                    function finish() {
+                        if (done) return;
+                        done = true;
+                        map.off('moveend', finish);
+                        clearTimeout(timer);
+                        resolve();
+                    }
+                    const timer = setTimeout(finish, timeoutMs || 800);
+                    map.once('moveend', finish);
+                });
+            }
+
+            function fitPrintBounds() {
+                return new Promise(function(resolve) {
+                    if (allPts.length > 0) {
+                        map.fitBounds(L.latLngBounds(allPts), {
+                            paddingTopLeft: [60, 60],
+                            paddingBottomRight: [60, 60],
+                            animate: false,
+                            maxZoom: printMaxZoom
+                        });
+                        waitForMapSettled(600).then(resolve);
+                    } else {
+                        resolve();
+                    }
                 });
             }
 
@@ -3228,39 +3310,36 @@
                 }, 350);
             }
 
-            setTimeout(function() {
-                map.invalidateSize({ animate: false, pan: false });
-
-                if (allPts.length > 0) {
-                    map.fitBounds(L.latLngBounds(allPts), {
-                        paddingTopLeft: [60, 60],
-                        paddingBottomRight: [60, 60],
-                        animate: false,
-                        maxZoom: printMaxZoom
-                    });
-                }
-
-                setTimeout(function() {
-                    if (allPts.length > 0) {
-                        map.fitBounds(L.latLngBounds(allPts), {
-                            paddingTopLeft: [60, 60],
-                            paddingBottomRight: [60, 60],
-                            animate: false,
-                            maxZoom: printMaxZoom
+            // 【改进】用 Promise 串行化时序：invalidateSize -> fitBounds -> 二次适配 -> print
+            map.invalidateSize({ animate: false, pan: false });
+            fitPrintBounds()
+                .then(function() {
+                    // 二次微调，确保尺寸变化后边界准确
+                    map.invalidateSize({ animate: false, pan: false });
+                    return fitPrintBounds();
+                })
+                .then(function() {
+                    // 再等一帧，让 Canvas 完成重绘
+                    return new Promise(function(resolve) {
+                        requestAnimationFrame(function() {
+                            requestAnimationFrame(resolve);
                         });
-                    }
-
-                    setTimeout(function() {
-                        window.print();
-                        window.addEventListener('afterprint', afterPrint, { once: true });
-                        setTimeout(afterPrint, 1000);
-                    }, 100);
-                }, 100);
-            }, 100);
+                    });
+                })
+                .then(function() {
+                    window.print();
+                    window.addEventListener('afterprint', afterPrint, { once: true });
+                    // 兜底：若 afterprint 未触发（部分浏览器），2 秒后恢复
+                    setTimeout(afterPrint, 2000);
+                })
+                .catch(function(err) {
+                    console.error('打印流程异常:', err);
+                    // 出错也要恢复状态
+                    afterPrint();
+                });
         }
 
         // ==================== 启动 ====================
-        // 用 DOMContentLoaded 替代 window.onload，更早执行，避免依赖外部资源
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', function() {
                 console.log('DOMContentLoaded, 开始初始化...');
@@ -3278,7 +3357,6 @@
                 }
             });
         } else {
-            // DOM 已就绪，直接执行
             console.log('DOM 已就绪，开始初始化...');
             try {
                 bindUIEvents();
