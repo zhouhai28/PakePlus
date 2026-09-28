@@ -367,10 +367,6 @@
             display: none !important;
         }
 
-        .legend {
-            display: none !important;
-        }
-
         .invisible-marker {
             background: transparent !important;
             border: none !important;
@@ -657,8 +653,6 @@
                 bottom: 20px !important;
                 z-index: 10000 !important;
             }
-
-            .legend { display: none !important; }
 
             #totalLengthDisplay,
             #jifangCountDisplay,
@@ -1852,8 +1846,10 @@
             activeRouteIds.clear();
             routeNodesMap.clear();
             drawnNodeLabelKeys.clear();
-            const oldLegend = document.querySelector('.legend');
-            if (oldLegend) oldLegend.remove();
+
+            // 【修改】兼容清理新旧两种类名的图例 DOM
+            const oldLegends = document.querySelectorAll('.legend, .legend-visible');
+            oldLegends.forEach(el => el.remove());
         }
 
         function drawMap() {
@@ -1945,8 +1941,6 @@
             }
 
             const allLatLngs = [];
-            const legendItems = [];
-            const addedRouteIds = new Set();
             const endpointSet = new Set();
             const drawnLengthLabelKeys = new Set();
 
@@ -2018,13 +2012,6 @@
                     }
                 }
 
-                uniqueRoutes.forEach(r => {
-                    if (!addedRouteIds.has(r.routeId)) {
-                        addedRouteIds.add(r.routeId);
-                        legendItems.push({ routeId: r.routeId, color: r.color });
-                    }
-                });
-
                 if (showLength && !drawnLengthLabelKeys.has(key)) {
                     drawnLengthLabelKeys.add(key);
                     const dist = calcDistance(p1.lat, p1.lng, p2.lat, p2.lng);
@@ -2081,7 +2068,6 @@
             if (allLatLngs.length > 0 && !isWhiteBg) {
                 map.fitBounds(L.latLngBounds(allLatLngs), { maxZoom: MAX_ZOOM });
             }
-            addLegend(legendItems);
             updateTotalLengthDisplay();
         }
 
@@ -2525,23 +2511,6 @@
             });
 
             return [marker, labelMarker];
-        }
-
-        // 【改进】addLegend 改为实际可见的图例（原来被 CSS 隐藏，现启用）
-        function addLegend(items) {
-            if (items.length === 0) return;
-            const legend = L.control({ position: 'bottomright' });
-            legend.onAdd = function() {
-                const div = L.DomUtil.create('div', 'legend-visible');
-                div.innerHTML = '<strong>光缆路由</strong>';
-                items.forEach(item => {
-                    div.innerHTML += '<div class="legend-item"><span class="legend-color" style="background:' +
-                        item.color + '"></span><span>' + item.routeId + '</span></div>';
-                });
-                return div;
-            };
-            legend.addTo(map);
-            currentLayers.push(legend);
         }
 
         function updateTotalLengthDisplay() {
