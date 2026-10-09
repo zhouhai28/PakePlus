@@ -297,7 +297,7 @@ const SUGGEST_STRATEGIES = [
   { id:'volume_break', name:'放量突破', desc:'成交量放大且价格突破前高', type:'ai', indicator:'VOLUME', buyRule:'volume_spike', params:{volRatio:1.5,highPeriod:20} },
   { id:'rsi_oversold', name:'RSI超卖', desc:'RSI小于30时买入', type:'ai', indicator:'RSI', buyRule:'oversold', params:{period:14,threshold:30} },
   { id:'boll_lower', name:'布林下轨', desc:'价格触及布林下轨时买入', type:'ai', indicator:'BOLL', buyRule:'touch_lower', params:{period:20,std:2} },
-  { id:'bottom_rise', name:'筑底抬头', desc:'价格低位 且 MA5拐头向上 (形态策略)', type:'composite', conditions:[{type:'price_low_n',params:{period:24,percentile:0.3}},{type:'ma_turn_up',params:{period:5,lookback:3}}], logic:'AND' },
+  { id:'bottom_rise', name:'筑底抬头', desc:'价格低位 OR MA5拐头向上 (形态策略)', type:'composite', conditions:[{type:'price_low_n',params:{period:24,percentile:0.3}},{type:'ma_turn_up',params:{period:5,lookback:3}}], logic:'OR' },
 ];
 
 // ============================================================
@@ -305,7 +305,6 @@ const SUGGEST_STRATEGIES = [
 // ============================================================
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 let DEEPSEEK_API_KEY = localStorage.getItem('deepseek_api_key') || 'YOUR_DEEPSEEK_API_KEY';
-
 function promptForApiKey() {
   const currentVal = DEEPSEEK_API_KEY === 'YOUR_DEEPSEEK_API_KEY' ? '' : DEEPSEEK_API_KEY;
   const key = prompt('请输入 DeepSeek API Key (将保存在本地浏览器):', currentVal);
@@ -319,57 +318,22 @@ function promptForApiKey() {
   }
   return false;
 }
-
 async function parseStrategyWithDeepSeek(userInput) {
   if (!DEEPSEEK_API_KEY || DEEPSEEK_API_KEY === 'YOUR_DEEPSEEK_API_KEY') throw new Error('NO_API_KEY');
   const systemPrompt = `你是一个股票技术指标策略解析助手。用户会用自然语言描述一个买入策略，你需要把它解析成结构化的 JSON。
-
 支持的指标: MA(均线), MACD, KDJ, RSI, BOLL(布林带), VOLUME(成交量), PRICE(价格形态)
-
-支持的买入规则 buyRule:
-- golden_cross: 金叉 (快线上穿慢线)
-- dead_cross: 死叉 (快线下穿慢线)
-- oversold: 超卖 (指标低于下阈值)
-- overbought: 超买 (指标高于上阈值)
-- break_high: 突破前高
-- break_low: 跌破前低
-- touch_lower: 触及下轨
-- touch_upper: 触及上轨
-- volume_spike: 成交量放大
-- price_above: 价格站上某均线
-- price_below: 价格跌破某均线
-
+支持的买入规则 buyRule: golden_cross, dead_cross, oversold, overbought, break_high, break_low, touch_lower, touch_upper, volume_spike, price_above, price_below
 必须返回严格的 JSON 格式, 不要有其他文字:
-{
-  "matched": true/false,
-  "name": "简短策略名 (10字内)",
-  "indicator": "MA|MACD|KDJ|RSI|BOLL|VOLUME|PRICE",
-  "buyRule": "上述规则之一",
-  "params": { "fast": 5, "slow": 10, "period": 9, "threshold": 30 },
-  "desc": "标准策略描述"
-}
-
-如果无法解析成技术指标策略, 返回 { "matched": false, "reason": "原因" }
-
-示例:
-输入"5日均线上穿20日均线买入" → {"matched":true,"name":"MA5上穿MA20","indicator":"MA","buyRule":"golden_cross","params":{"fast":5,"slow":20},"desc":"MA5上穿MA20时买入"}
-输入"5月均线上穿10月均线" → {"matched":true,"name":"MA5上穿MA10","indicator":"MA","buyRule":"golden_cross","params":{"fast":5,"slow":10},"desc":"MA5上穿MA10时买入 (参数为周期数, 按当前K线周期计算)"}
-输入"MACD金叉" → {"matched":true,"name":"MACD金叉","indicator":"MACD","buyRule":"golden_cross","params":{"fast":12,"slow":26,"signal":9},"desc":"MACD DIF上穿DEA时买入"}
-输入"KDJ超卖" → {"matched":true,"name":"KDJ超卖","indicator":"KDJ","buyRule":"oversold","params":{"period":9,"threshold":20},"desc":"KDJ J值小于20时买入"}
-输入"RSI低于30买入" → {"matched":true,"name":"RSI超卖","indicator":"RSI","buyRule":"oversold","params":{"period":14,"threshold":30},"desc":"RSI小于30时买入"}
-输入"价格突破20日最高价" → {"matched":true,"name":"突破20日高点","indicator":"PRICE","buyRule":"break_high","params":{"period":20},"desc":"收盘价突破20日最高价时买入"}
-输入"随便写点啥" → {"matched":false,"reason":"无法识别为技术指标策略"}`;
+{"matched":true,"name":"简短策略名","indicator":"MA|MACD|KDJ|RSI|BOLL|VOLUME|PRICE","buyRule":"上述规则之一","params":{"fast":5,"slow":10,"period":9,"threshold":30},"desc":"标准策略描述"}
+如果无法解析, 返回 {"matched":false,"reason":"原因"}
+示例: "5日均线上穿20日均线买入" → {"matched":true,"name":"MA5上穿MA20","indicator":"MA","buyRule":"golden_cross","params":{"fast":5,"slow":20},"desc":"MA5上穿MA20时买入"}`;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000);
   try {
     const resp = await fetch(DEEPSEEK_API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json', 'Authorization':'Bearer ' + DEEPSEEK_API_KEY },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: [ {role:'system',content:systemPrompt}, {role:'user',content:userInput} ],
-        temperature: 0.1, max_tokens: 500, response_format: { type:'json_object' }
-      }),
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + DEEPSEEK_API_KEY },
+      body: JSON.stringify({ model:'deepseek-chat', messages:[ {role:'system',content:systemPrompt}, {role:'user',content:userInput} ], temperature:0.1, max_tokens:500, response_format:{type:'json_object'} }),
       signal: controller.signal
     });
     if (!resp.ok) { const errText = await resp.text(); throw new Error(`API错误 ${resp.status}: ${errText.slice(0,100)}`); }
@@ -392,7 +356,6 @@ const DB_VERSION = 2;
 const STORE_NAME = 'klines';
 const HANDLE_STORE = 'handles';
 let dbPromise = null;
-
 function openDB() {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
@@ -1043,9 +1006,7 @@ function renderSuggestStrategies() {
 function normalizeStrategy(input) {
   const text = input.trim();
   const lower = text.toLowerCase();
-
-  // ========== 形态策略 ==========
-  // 筑底抬头
+  // 形态策略: 筑底抬头
   if ((lower.includes('筑底') || lower.includes('底部') || lower.includes('低位')) &&
       (lower.includes('抬头') || lower.includes('拐头') || lower.includes('转强') || lower.includes('回升'))) {
     const periodMatch = text.match(/(\d+)\s*[日周月]/);
@@ -1087,7 +1048,7 @@ function normalizeStrategy(input) {
       conditions:[ {type:'volume_spike',params:{period:5,ratio:1.5}}, {type:'price_high_n',params:{period:20,percentile:0.1}} ],
       logic:'AND', matchQuality:'good', createdPeriod:currentPeriod };
   }
-  // 通用组合: 含"且"/"并且"/"同时"
+  // 通用组合
   if ((lower.includes('且') || lower.includes('并且') || lower.includes('同时')) &&
       (lower.includes('均线') || lower.includes('ma') || lower.includes('macd') || lower.includes('kdj') || lower.includes('rsi') || lower.includes('缩量') || lower.includes('放量') || lower.includes('突破'))) {
     const parts = text.split(/且|并且|同时/);
@@ -1100,34 +1061,20 @@ function normalizeStrategy(input) {
         else if (m && (partLower.includes('下穿') || partLower.includes('死叉'))) conditions.push({ type:'ma_dead', params:{fast:parseInt(m[1]),slow:parseInt(m[2])} });
         else if (m && (partLower.includes('大于') || partLower.includes('高于') || partLower.includes('上方'))) conditions.push({ type:'ma_above', params:{fast:parseInt(m[1]),slow:parseInt(m[2])} });
         else if (partLower.includes('macd') && (partLower.includes('金叉') || partLower.includes('上穿'))) conditions.push({ type:'macd_golden', params:{} });
-        else if (partLower.includes('kdj') && (partLower.includes('超卖') || partLower.includes('小于'))) {
-          const th = part.match(/(\d+)/);
-          conditions.push({ type:'kdj_oversold', params:{threshold:th?parseInt(th[1]):20} });
-        }
-        else if (partLower.includes('rsi') && (partLower.includes('超卖') || partLower.includes('小于'))) {
-          const th = part.match(/(\d+)/);
-          conditions.push({ type:'rsi_oversold', params:{period:14,threshold:th?parseInt(th[1]):30} });
-        }
-        else if (partLower.includes('突破')) {
-          const pn = part.match(/(\d+)/);
-          conditions.push({ type:'price_high_n', params:{period:pn?parseInt(pn[1]):20,percentile:0.1} });
-        }
+        else if (partLower.includes('kdj') && (partLower.includes('超卖') || partLower.includes('小于'))) { const th = part.match(/(\d+)/); conditions.push({ type:'kdj_oversold', params:{threshold:th?parseInt(th[1]):20} }); }
+        else if (partLower.includes('rsi') && (partLower.includes('超卖') || partLower.includes('小于'))) { const th = part.match(/(\d+)/); conditions.push({ type:'rsi_oversold', params:{period:14,threshold:th?parseInt(th[1]):30} }); }
+        else if (partLower.includes('突破')) { const pn = part.match(/(\d+)/); conditions.push({ type:'price_high_n', params:{period:pn?parseInt(pn[1]):20,percentile:0.1} }); }
         else if (partLower.includes('放量')) conditions.push({ type:'volume_spike', params:{period:5,ratio:1.5} });
         else if (partLower.includes('缩量')) conditions.push({ type:'volume_shrink', params:{period:5,ratio:0.7} });
         else if (partLower.includes('筑底') || partLower.includes('低位')) conditions.push({ type:'price_low_n', params:{period:24,percentile:0.3} });
-        else if (partLower.includes('抬头') || partLower.includes('拐头')) {
-          const pm = part.match(/(\d+)/);
-          conditions.push({ type:'ma_turn_up', params:{period:pm?parseInt(pm[1]):5,lookback:3} });
-        }
+        else if (partLower.includes('抬头') || partLower.includes('拐头')) { const pm = part.match(/(\d+)/); conditions.push({ type:'ma_turn_up', params:{period:pm?parseInt(pm[1]):5,lookback:3} }); }
       }
       if (conditions.length === 2) {
         return { id:'local_composite_'+Date.now(), name:text.slice(0,12), desc:`${conditions[0].type} AND ${conditions[1].type}`, type:'composite', conditions, logic:'AND', matchQuality:'good', createdPeriod:currentPeriod };
       }
     }
   }
-
-  // ========== 基础策略 (原有) ==========
-  // MA
+  // 基础策略: MA
   if (lower.includes('均线') || lower.includes('ma') || /\d+\s*[日周月]/.test(lower)) {
     const match = text.match(/(\d+)\s*[日周月].*?(\d+)\s*[日周月]/);
     if (match && (lower.includes('金叉') || lower.includes('上穿'))) {
@@ -1145,12 +1092,8 @@ function normalizeStrategy(input) {
   }
   // MACD
   if (lower.includes('macd')) {
-    if (lower.includes('金叉') || lower.includes('上穿')) {
-      return { id:'local_macd_golden_'+Date.now(), name:'MACD金叉', desc:'MACD金叉(DIF上穿DEA时买入)', type:'ai', indicator:'MACD', buyRule:'golden_cross', params:{fast:12,slow:26,signal:9}, matchQuality:'good', createdPeriod:currentPeriod };
-    }
-    if (lower.includes('死叉') || lower.includes('下穿')) {
-      return { id:'local_macd_dead_'+Date.now(), name:'MACD死叉', desc:'MACD死叉(DIF下穿DEA时卖出)', type:'ai', indicator:'MACD', buyRule:'dead_cross', params:{fast:12,slow:26,signal:9}, matchQuality:'good', createdPeriod:currentPeriod };
-    }
+    if (lower.includes('金叉') || lower.includes('上穿')) return { id:'local_macd_golden_'+Date.now(), name:'MACD金叉', desc:'MACD金叉(DIF上穿DEA时买入)', type:'ai', indicator:'MACD', buyRule:'golden_cross', params:{fast:12,slow:26,signal:9}, matchQuality:'good', createdPeriod:currentPeriod };
+    if (lower.includes('死叉') || lower.includes('下穿')) return { id:'local_macd_dead_'+Date.now(), name:'MACD死叉', desc:'MACD死叉(DIF下穿DEA时卖出)', type:'ai', indicator:'MACD', buyRule:'dead_cross', params:{fast:12,slow:26,signal:9}, matchQuality:'good', createdPeriod:currentPeriod };
   }
   // KDJ
   if (lower.includes('kdj')) {
@@ -1159,23 +1102,17 @@ function normalizeStrategy(input) {
       const threshold = thresholdMatch ? parseInt(thresholdMatch[1]) : 20;
       return { id:'local_kdj_oversold_'+Date.now(), name:'KDJ超卖', desc:`KDJ J值小于${threshold}时买入`, type:'ai', indicator:'KDJ', buyRule:'oversold', params:{period:9,threshold}, matchQuality:'good', createdPeriod:currentPeriod };
     }
-    if (lower.includes('金叉') || lower.includes('上穿')) {
-      return { id:'local_kdj_golden_'+Date.now(), name:'KDJ金叉', desc:'KDJ K线上穿D线时买入', type:'ai', indicator:'KDJ', buyRule:'golden_cross', params:{period:9}, matchQuality:'good', createdPeriod:currentPeriod };
-    }
+    if (lower.includes('金叉') || lower.includes('上穿')) return { id:'local_kdj_golden_'+Date.now(), name:'KDJ金叉', desc:'KDJ K线上穿D线时买入', type:'ai', indicator:'KDJ', buyRule:'golden_cross', params:{period:9}, matchQuality:'good', createdPeriod:currentPeriod };
   }
   // RSI
   if (lower.includes('rsi')) {
     const thresholdMatch = text.match(/(\d+)/);
     const threshold = thresholdMatch ? parseInt(thresholdMatch[1]) : 30;
-    if (lower.includes('超卖') || lower.includes('小于') || lower.includes('低于')) {
-      return { id:'local_rsi_oversold_'+Date.now(), name:'RSI超卖', desc:`RSI小于${threshold}时买入`, type:'ai', indicator:'RSI', buyRule:'oversold', params:{period:14,threshold}, matchQuality:'good', createdPeriod:currentPeriod };
-    }
+    if (lower.includes('超卖') || lower.includes('小于') || lower.includes('低于')) return { id:'local_rsi_oversold_'+Date.now(), name:'RSI超卖', desc:`RSI小于${threshold}时买入`, type:'ai', indicator:'RSI', buyRule:'oversold', params:{period:14,threshold}, matchQuality:'good', createdPeriod:currentPeriod };
   }
   // BOLL
   if (lower.includes('布林') || lower.includes('boll')) {
-    if (lower.includes('下轨')) {
-      return { id:'local_boll_lower_'+Date.now(), name:'布林下轨', desc:'价格触及布林下轨时买入', type:'ai', indicator:'BOLL', buyRule:'touch_lower', params:{period:20,std:2}, matchQuality:'good', createdPeriod:currentPeriod };
-    }
+    if (lower.includes('下轨')) return { id:'local_boll_lower_'+Date.now(), name:'布林下轨', desc:'价格触及布林下轨时买入', type:'ai', indicator:'BOLL', buyRule:'touch_lower', params:{period:20,std:2}, matchQuality:'good', createdPeriod:currentPeriod };
   }
   // 突破前高
   if (lower.includes('突破') && (lower.includes('前高') || lower.includes('最高'))) {
@@ -1200,9 +1137,7 @@ document.getElementById('addManualStrategyBtn').addEventListener('click', async 
   const localStrategy = normalizeStrategy(text);
   if (localStrategy.matchQuality === 'good') {
     selectedStrategies.push(localStrategy);
-    saveStrategies();
-    renderSuggestStrategies();
-    input.value = '';
+    saveStrategies(); renderSuggestStrategies(); input.value = '';
     const typeLabel = localStrategy.type === 'composite' ? '形态策略' : '本地规则';
     statusEl.innerHTML = `<span class="badge cyan">✅ ${typeLabel}匹配成功</span> ${localStrategy.name}${localStrategy.params?' '+JSON.stringify(localStrategy.params):''}${localStrategy.conditions?' ('+localStrategy.conditions.length+'条件)':''}`;
     return;
@@ -1226,7 +1161,7 @@ document.getElementById('addManualStrategyBtn').addEventListener('click', async 
 });
 
 // ============================================================
-// 策略执行 - 条件检测器 (基础条件)
+// 策略选择下拉
 // ============================================================
 function renderStrategySelect() {
   if (selectedStrategies.length === 0) { strategySelectDropdown.innerHTML = '<div style="padding:10px;color:#6e7e8f;font-size:.78rem;">请先在策略管理中添加策略</div>'; return; }
@@ -1256,8 +1191,6 @@ function detectSignals(strategyIds, bars) {
   const signals = [];
   const n = bars.length;
   if (n < 20) return signals;
-
-  // 基础指标缓存
   const maCache = {};
   function getMA(period) { if (!maCache[period]) maCache[period] = calcMA(bars, period); return maCache[period]; }
   const kdjCache = calcKDJ(bars);
@@ -1298,7 +1231,6 @@ function detectSignals(strategyIds, bars) {
   const volArr = new Array(n);
   for (let i = 0; i < n; i++) volArr[i] = Math.round((bars[i].high - bars[i].low) / bars[i].low * 8000 + 5000);
 
-  // ========== 基础条件检测器 (返回布尔数组) ==========
   function checkPriceLowN(period, percentile) {
     const result = new Array(n).fill(false);
     for (let i = period; i < n; i++) {
@@ -1471,7 +1403,6 @@ function detectSignals(strategyIds, bars) {
     }
     return result;
   }
-
   function evalCondition(cond) {
     const t = cond.type, p = cond.params || {};
     switch (t) {
@@ -1498,15 +1429,13 @@ function detectSignals(strategyIds, bars) {
     }
   }
 
-  // ========== 主循环 ==========
   for (let i = 1; i < n; i++) {
     const bar = bars[i];
     let buySignal = false;
     for (let sidx = 0; sidx < strategyIds.length; sidx++) {
       const strategy = selectedStrategies.find(s => s.id === strategyIds[sidx]);
       if (!strategy) continue;
-
-      // 复合策略 (形态策略): 所有条件按 logic 组合
+      // 复合策略
       if ((strategy.type === 'composite' || (strategy.conditions && Array.isArray(strategy.conditions))) && strategy.conditions && strategy.conditions.length > 0) {
         const condResults = strategy.conditions.map(c => evalCondition(c));
         const logic = strategy.logic || 'AND';
@@ -1518,7 +1447,6 @@ function detectSignals(strategyIds, bars) {
         if (logic === 'OR' && anyTrue) buySignal = true;
         continue;
       }
-
       // 单指标策略
       if (strategy.type === 'ai' && strategy.indicator && strategy.buyRule) {
         const ind = strategy.indicator, rule = strategy.buyRule, p = strategy.params || {};
@@ -1558,16 +1486,8 @@ function detectSignals(strategyIds, bars) {
         if (ind === 'PRICE') {
           const period = p.period || 20;
           if (i >= period) {
-            if (rule === 'break_high') {
-              let hh = -Infinity;
-              for (let k = i - period; k < i; k++) if (bars[k].high > hh) hh = bars[k].high;
-              if (bar.close > hh) buySignal = true;
-            }
-            if (rule === 'break_low') {
-              let ll = Infinity;
-              for (let k = i - period; k < i; k++) if (bars[k].low < ll) ll = bars[k].low;
-              if (bar.close < ll) buySignal = true;
-            }
+            if (rule === 'break_high') { let hh = -Infinity; for (let k = i - period; k < i; k++) if (bars[k].high > hh) hh = bars[k].high; if (bar.close > hh) buySignal = true; }
+            if (rule === 'break_low') { let ll = Infinity; for (let k = i - period; k < i; k++) if (bars[k].low < ll) ll = bars[k].low; if (bar.close < ll) buySignal = true; }
           }
         }
         if (ind === 'VOLUME') {
@@ -1577,16 +1497,12 @@ function detectSignals(strategyIds, bars) {
             for (let k = i - 5; k < i; k++) volSum += volArr[k];
             const volMA = volSum / 5;
             if (volArr[i] > volMA * volRatio && rule === 'volume_spike') {
-              if (i >= highPeriod) {
-                let hh = -Infinity;
-                for (let k = i - highPeriod; k < i; k++) if (bars[k].high > hh) hh = bars[k].high;
-                if (bar.close > hh) buySignal = true;
-              } else buySignal = true;
+              if (i >= highPeriod) { let hh = -Infinity; for (let k = i - highPeriod; k < i; k++) if (bars[k].high > hh) hh = bars[k].high; if (bar.close > hh) buySignal = true; }
+              else buySignal = true;
             }
           }
         }
       }
-      // 通用策略关键词兜底
       else if (strategy.type === 'custom' && strategy.originalText) {
         const txt = strategy.originalText.toLowerCase();
         const nums = strategy.originalText.match(/\d+/g) || [];
@@ -1601,16 +1517,9 @@ function detectSignals(strategyIds, bars) {
             if ((txt.includes('小于') || txt.includes('低于')) && maFast[i] < maSlow[i]) buySignal = true;
           }
         }
-        if (txt.includes('macd') && (txt.includes('金叉') || txt.includes('上穿'))) {
-          if (macdCache.dif[i-1] <= macdCache.dea[i-1] && macdCache.dif[i] > macdCache.dea[i]) buySignal = true;
-        }
-        if (txt.includes('kdj') && (txt.includes('超卖') || txt.includes('小于'))) {
-          if (kdjCache.j[i] !== '-' && kdjCache.j[i] < 20) buySignal = true;
-        }
-        if (txt.includes('rsi') && (txt.includes('超卖') || txt.includes('小于') || txt.includes('低于'))) {
-          const rsi = getRSI(14);
-          if (rsi[i] < 30) buySignal = true;
-        }
+        if (txt.includes('macd') && (txt.includes('金叉') || txt.includes('上穿'))) if (macdCache.dif[i-1] <= macdCache.dea[i-1] && macdCache.dif[i] > macdCache.dea[i]) buySignal = true;
+        if (txt.includes('kdj') && (txt.includes('超卖') || txt.includes('小于'))) if (kdjCache.j[i] !== '-' && kdjCache.j[i] < 20) buySignal = true;
+        if (txt.includes('rsi') && (txt.includes('超卖') || txt.includes('小于') || txt.includes('低于'))) { const rsi = getRSI(14); if (rsi[i] < 30) buySignal = true; }
       }
     }
     if (buySignal) signals.push({ date: bar.date, price: bar.close, index: i });
@@ -1699,6 +1608,9 @@ document.getElementById('statBtn').addEventListener('click', () => {
   showStatPage(trades, capital, currentCapital, profitPct, stopLossPct);
 });
 
+// ============================================================
+// 收益统计页面: 优先 Tauri API (PakePlus), 降级 window.open
+// ============================================================
 function showStatPage(trades, initialCapital, finalCapital, profitPct, stopLossPct) {
   const totalNetProfit = trades.reduce((sum, t) => sum + parseFloat(t.netProfit), 0);
   const totalReturnPct = (totalNetProfit / initialCapital * 100).toFixed(2);
@@ -1733,9 +1645,60 @@ ${trades.map(t => `<tr><td>${t.date}</td><td>${t.buyDate}</td><td>${t.buyPrice.t
 </tbody></table>
 <div class="footer">费用说明: 佣金万三(最低5元), 印花税万五(卖出), 过户费万0.1 | 买入按收盘价, 卖出按触发条件当日收盘价</div>
 </body></html>`;
-  const win = window.open('', '_blank');
-  win.document.write(html);
-  win.document.close();
+  tryOpenStatWithTauri(html, () => { fallbackOpenStat(html); });
+}
+
+// 优先使用 Tauri API 打开新窗口 (PakePlus)
+async function tryOpenStatWithTauri(html, onFail) {
+  const tauri = window.__TAURI__ || window.__TAURI_INTERNALS__;
+  if (!tauri) { console.log('[统计页面] 非 Tauri 环境, 使用 window.open'); onFail(); return; }
+  console.log('[统计页面] 检测到 Tauri 环境, 尝试创建新窗口');
+  // 方式A: Tauri v2 WebviewWindow
+  if (tauri.webviewWindow && tauri.webviewWindow.WebviewWindow) {
+    try {
+      const { WebviewWindow } = tauri.webviewWindow;
+      const win = new WebviewWindow('stat-window-' + Date.now(), {
+        url: 'data:text/html;charset=utf-8,' + encodeURIComponent(html),
+        title: '盈利情况统计', width: 1100, height: 700, focus: true, center: true, resizable: true
+      });
+      win.once('tauri://error', (e) => { console.error('[统计页面] Tauri 窗口创建失败:', e); onFail(); });
+      return;
+    } catch (e) { console.warn('[统计页面] WebviewWindow 调用异常:', e); }
+  }
+  // 方式B: Tauri v1 WebviewWindow
+  if (tauri.WebviewWindow) {
+    try {
+      new tauri.WebviewWindow('stat-window-' + Date.now(), {
+        url: 'data:text/html;charset=utf-8,' + encodeURIComponent(html),
+        title: '盈利情况统计', width: 1100, height: 700, focus: true, center: true, resizable: true
+      });
+      return;
+    } catch (e) { console.warn('[统计页面] Tauri v1 调用异常:', e); }
+  }
+  // 方式C: invoke 自定义命令
+  if (tauri.core && tauri.core.invoke) {
+    try { await tauri.core.invoke('open_stat_window', { html }); return; }
+    catch (e) { console.warn('[统计页面] invoke 调用异常:', e); }
+  }
+  console.log('[统计页面] Tauri API 不可用, 降级到 window.open');
+  onFail();
+}
+
+// 降级: window.open, 再不行用 Blob URL 当前页打开
+function fallbackOpenStat(html) {
+  let win = null;
+  try { win = window.open('', '_blank'); } catch (e) { console.warn('[统计页面] window.open 异常:', e); }
+  if (win && win.document) {
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    return;
+  }
+  console.warn('[统计页面] window.open 被拦截, 使用 Blob URL 当前页打开');
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  window.location.href = url;
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 // ============================================================
