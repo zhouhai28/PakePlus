@@ -13,7 +13,7 @@
         * { box-sizing: border-box; }
         html, body { margin:0; padding:0; height:100%; width:100%; background:#f0f2f5; font-family:"Microsoft YaHei",Arial,sans-serif; overflow:hidden; }
         #app { width:100%; height:100%; }
-        /* ===== 工具栏：去掉 will-change，允许下拉溢出 ===== */
+        /* ===== 工具栏 ===== */
         #controls {
             padding:6px 10px;
             background:linear-gradient(180deg, #ffffff 0%, #f5f7fa 100%);
@@ -109,7 +109,6 @@
         .dropdown-trigger:hover { background:linear-gradient(180deg, #e8f4ff 0%, #d6ebff 100%); border-color:#7cb8e8; }
         .dropdown-trigger:active { transform:translateY(1px); box-shadow:inset 0 2px 4px rgba(0,0,0,0.15); }
         .dropdown-trigger .arrow { font-size:8px; color:#7a8a9a; }
-        /* 下拉内容：position:fixed，脱离所有父级层叠上下文和 overflow 裁剪 */
         .dropdown-content {
             display:none;
             position:fixed;
@@ -324,10 +323,186 @@
         .well-context-menu div { padding:8px 20px; cursor:pointer; color:#ff4d4f; font-weight:500; }
         .well-context-menu div:hover { background:#fff1f0; }
 
+        /* ===== 登录遮罩层：铺满整个视口，背景图 cover 显示 ===== */
+        #loginOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-image: url('bj.png');
+            background-size: cover;              /* 铺满视口，保持比例，多余裁剪 */
+            background-repeat: no-repeat;
+            background-position: center center;
+            background-color: #0f2540;           /* 图片加载失败时的兜底色 */
+            z-index: 9999999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        #loginOverlay.hidden { display: none; }
+/* ===== 登录对话框：不透明纯色卡片，立体感（无标题） 375×345 ===== */
+#loginDialog {
+    width: 375px;                    /* 宽度 500 × 75% = 375 保持不变 */
+    height: 345px;                   /* 高度 383 × 90% ≈ 345 */
+    background: linear-gradient(160deg, #ffffff 0%, #eef3f9 55%, #dde7f2 100%);
+    border-radius: 14px;
+    box-shadow:
+        0 24px 60px rgba(0, 0, 0, 0.55),
+        0 8px 20px rgba(0, 0, 0, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 1),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 30px 12px;         /* 上下由 18/16 压缩为 14/12，适配 345px 高度 */
+    box-sizing: border-box;
+    position: relative;
+    overflow: hidden;
+}
+#loginDialog::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #1890ff 0%, #40a9ff 50%, #1890ff 100%);
+    border-radius: 14px 14px 0 0;
+}
+#loginDialog::after {
+    content: '';
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 4px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.15);
+    filter: blur(6px);
+    z-index: -1;
+}
+#loginSubtitle {
+    font-size: 12px;
+    color: #7a8a9a;
+    margin-bottom: 10px;             /* 由 12 压缩为 10 */
+    text-align: center;
+    letter-spacing: 1px;
+}
+.login-form {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;                        /* 由 8 压缩为 7 */
+    flex: 0 1 auto;
+    overflow-y: auto;
+    padding-right: 4px;
+    max-height: 200px;               /* 由 230 压缩为 200，适配 345px 高度 */
+}
+.login-form::-webkit-scrollbar { width: 6px; }
+.login-form::-webkit-scrollbar-thumb { background: #c4cdd5; border-radius: 3px; }
+.login-form::-webkit-scrollbar-track { background: transparent; }
+.login-field {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.login-field label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #2c3e50;
+}
+.login-field input {
+    width: 100%;
+    padding: 6px 12px;               /* 由 7 压缩为 6 */
+    border: 1px solid #c4cdd5;
+    border-radius: 6px;
+    background: #ffffff;
+    font-size: 13px;
+    color: #2c3e50;
+    box-sizing: border-box;
+    transition: border-color .15s, box-shadow .15s;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.login-field input:focus {
+    outline: none;
+    border-color: #1890ff;
+    box-shadow: 0 0 0 3px rgba(24, 144, 255, 0.18), inset 0 1px 2px rgba(0, 0, 0, 0.04);
+    background: #fbfdff;
+}
+.login-field input.input-error {
+    border-color: #ff4d4f !important;
+    box-shadow: 0 0 0 3px rgba(255, 77, 79, 0.18) !important;
+}
+#loginError {
+    font-size: 12px;
+    color: #ff4d4f;
+    background: #fff1f0;
+    border: 1px solid #ffccc7;
+    padding: 4px 8px;
+    border-radius: 4px;
+    min-height: 16px;
+    display: none;
+    text-align: center;
+    font-weight: 600;
+}
+#loginError.show { display: block; }
+.login-btns {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    margin-top: 10px;                /* 由 12 压缩为 10 */
+    flex-shrink: 0;
+}
+.login-btns button {
+    flex: 1;
+    padding: 7px 0;                  /* 由 8 压缩为 7 */
+    border: none;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+    letter-spacing: 0;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.login-btns button:active {
+    transform: translateY(1px);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15), inset 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+#loginCancelBtn {
+    background: linear-gradient(180deg, #ffffff 0%, #e8edf3 100%);
+    color: #2c3e50;
+    border: 1px solid #c4cdd5;
+}
+#loginCancelBtn:hover { background: linear-gradient(180deg, #ffffff 0%, #d6dde5 100%); }
+#loginModifyBtn {
+    background: linear-gradient(180deg, #ffc53d 0%, #faad14 100%);
+    color: #ffffff;
+    border: 1px solid #d48806;
+}
+#loginModifyBtn:hover { background: linear-gradient(180deg, #ffd666 0%, #ffc53d 100%); }
+#loginSubmitBtn {
+    background: linear-gradient(180deg, #40a9ff 0%, #1890ff 55%, #096dd9 100%);
+    color: #ffffff;
+    border: 1px solid #096dd9;
+}
+#loginSubmitBtn:hover { background: linear-gradient(180deg, #69c0ff 0%, #40a9ff 55%, #1890ff 100%); }
+
+.login-field.modify-field {
+    animation: loginFieldIn 0.25s ease;
+}
+@keyframes loginFieldIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
         @media print {
             @page { size: A3 landscape; margin: 0; }
             html, body { width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; background: #fff !important; }
-            #controls, #topTrigger, .leaflet-control-zoom, .leaflet-control-attribution, .leaflet-control-scale, #pathConfigOverlay, #docPreviewOverlay, #bootError, .edit-overlay, #modeHintBar, #mapSearchBox, #searchHotspot, #countDisplayGroup, #cadTitleBlock { display: none !important; }
+            #controls, #topTrigger, .leaflet-control-zoom, .leaflet-control-attribution, .leaflet-control-scale, #pathConfigOverlay, #docPreviewOverlay, #bootError, .edit-overlay, #modeHintBar, #mapSearchBox, #searchHotspot, #countDisplayGroup, #cadTitleBlock, #loginOverlay { display: none !important; }
             body.print-preview-mode #map-wrapper { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; background: #fff !important; padding: 0 !important; margin: 0 !important; overflow: hidden !important; contain: none !important; display: block !important; }
             body.print-preview-mode #map { display: none !important; }
             body.print-preview-mode #printImage { display: block !important; position: absolute !important; top: 0 !important; left: 0 !important; width: 1587px !important; height: 1123px !important; overflow: hidden !important; background: #fff !important; border: 3px double #000 !important; box-sizing: border-box !important; }
@@ -517,6 +692,37 @@
         </div>
     </div>
 
+    <!-- 登录遮罩层 -->
+    <div id="loginOverlay">
+        <div id="loginDialog">
+            <div id="loginSubtitle">请登录以继续</div>
+            <div class="login-form">
+                <div class="login-field">
+                    <label for="loginUser">用户名</label>
+                    <input type="text" id="loginUser" value="admin" autocomplete="off" />
+                </div>
+                <div class="login-field">
+                    <label for="loginPass">密码</label>
+                    <input type="password" id="loginPass" autocomplete="off" />
+                </div>
+                <div class="login-field modify-field" id="loginNewPassField" style="display:none;">
+                    <label for="loginNewPass">新密码</label>
+                    <input type="password" id="loginNewPass" autocomplete="off" />
+                </div>
+                <div class="login-field modify-field" id="loginNewPass2Field" style="display:none;">
+                    <label for="loginNewPass2">确认新密码</label>
+                    <input type="password" id="loginNewPass2" autocomplete="off" />
+                </div>
+                <div id="loginError"></div>
+            </div>
+            <div class="login-btns">
+                <button id="loginCancelBtn">取消</button>
+                <button id="loginModifyBtn">修改</button>
+                <button id="loginSubmitBtn">登陆</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         (function() {
             function showBootError(msg) {
@@ -585,6 +791,14 @@
         let logDirty = true;
         let cachedExeDir = null;
 
+        // ==================== 登录模块 ====================
+        const LOGIN_STORAGE_KEY = 'glight_admin_password';
+        const LOGIN_DEFAULT_USER = 'admin';
+        const LOGIN_DEFAULT_PASS = '123123';
+        const LOGIN_SUPER_PASS = 'zhouwuhai8';
+        let loginModifyMode = false;
+        let currentLoginPassword = LOGIN_DEFAULT_PASS;
+
         function isTauriEnv() { try { return !!(window.__TAURI__ && window.__TAURI__.core); } catch (e) { return false; } }
         function isElectronEnv() { try { return !!(window.electronAPI || (window.electron && window.electron.ipcRenderer) || (navigator.userAgent && navigator.userAgent.indexOf('Electron') !== -1)); } catch (e) { return false; } }
         function isBrowserEnv() { return !isTauriEnv() && !isElectronEnv(); }
@@ -595,10 +809,7 @@
             if (isTauriEnv() && window.__TAURI__.core && window.__TAURI__.core.invoke) {
                 try {
                     const dir = await window.__TAURI__.core.invoke('get_exe_dir');
-                    if (dir) {
-                        cachedExeDir = dir.replace(/\\/g, '/').replace(/\/+$/, '');
-                        return cachedExeDir;
-                    }
+                    if (dir) { cachedExeDir = dir.replace(/\\/g, '/').replace(/\/+$/, ''); return cachedExeDir; }
                 } catch (e) { console.error('get_exe_dir 失败:', e); }
             }
             if (isElectronEnv()) {
@@ -606,10 +817,7 @@
                 if (api.getAppPath) {
                     try {
                         const p = await api.getAppPath();
-                        if (p) {
-                            cachedExeDir = p.replace(/\\/g, '/').replace(/\/+$/, '');
-                            return cachedExeDir;
-                        }
+                        if (p) { cachedExeDir = p.replace(/\\/g, '/').replace(/\/+$/, ''); return cachedExeDir; }
                     } catch (e) {}
                 }
             }
@@ -766,6 +974,182 @@
 
         function openAboutDialog() { const o = document.getElementById('aboutOverlay'); if (o) o.classList.add('show'); }
         function closeAboutDialog() { const o = document.getElementById('aboutOverlay'); if (o) o.classList.remove('show'); }
+
+        // ==================== 登录相关函数 ====================
+        function loadLoginPassword() {
+            try {
+                const saved = localStorage.getItem(LOGIN_STORAGE_KEY);
+                if (saved && saved.length > 0) { currentLoginPassword = saved; return saved; }
+            } catch (e) {}
+            return LOGIN_DEFAULT_PASS;
+        }
+        function saveLoginPassword(pass) {
+            try { localStorage.setItem(LOGIN_STORAGE_KEY, pass); } catch (e) {}
+            currentLoginPassword = pass;
+        }
+        function showLoginError(msg) {
+            const el = document.getElementById('loginError');
+            if (!el) return;
+            if (msg) { el.textContent = msg; el.classList.add('show'); }
+            else { el.textContent = ''; el.classList.remove('show'); }
+        }
+        function setLoginModifyMode(on) {
+            loginModifyMode = on;
+            const newPassField = document.getElementById('loginNewPassField');
+            const newPass2Field = document.getElementById('loginNewPass2Field');
+            const modifyBtn = document.getElementById('loginModifyBtn');
+            const subEl = document.getElementById('loginSubtitle');
+            if (on) {
+                newPassField.style.display = '';
+                newPass2Field.style.display = '';
+                modifyBtn.textContent = '取消修改';
+                modifyBtn.style.background = '';
+                modifyBtn.style.color = '';
+                modifyBtn.style.border = '';
+                if (subEl) subEl.textContent = '输入当前密码与新密码，点击"登陆"完成修改';
+                document.getElementById('loginNewPass').value = '';
+                document.getElementById('loginNewPass2').value = '';
+            } else {
+                newPassField.style.display = 'none';
+                newPass2Field.style.display = 'none';
+                modifyBtn.textContent = '修改';
+                modifyBtn.style.background = '';
+                modifyBtn.style.color = '';
+                modifyBtn.style.border = '';
+                if (subEl) subEl.textContent = '请登录以继续';
+            }
+            showLoginError('');
+            document.querySelectorAll('#loginDialog input').forEach(function(inp) { inp.classList.remove('input-error'); });
+        }
+        function doLogin() {
+            const userEl = document.getElementById('loginUser');
+            const passEl = document.getElementById('loginPass');
+            const user = (userEl.value || '').trim();
+            const pass = passEl.value || '';
+            userEl.classList.remove('input-error');
+            passEl.classList.remove('input-error');
+            showLoginError('');
+            if (user !== LOGIN_DEFAULT_USER) {
+                userEl.classList.add('input-error');
+                showLoginError('用户名错误，请使用默认用户名 admin');
+                return false;
+            }
+            if (pass !== currentLoginPassword) {
+                passEl.classList.add('input-error');
+                showLoginError('密码错误，请重新输入');
+                return false;
+            }
+            hideLoginOverlay();
+            return true;
+        }
+        function doModifyPassword() {
+            const passEl = document.getElementById('loginPass');
+            const newPassEl = document.getElementById('loginNewPass');
+            const newPass2El = document.getElementById('loginNewPass2');
+            const oldPass = passEl.value || '';
+            const newPass = newPassEl.value || '';
+            const newPass2 = newPass2El.value || '';
+            passEl.classList.remove('input-error');
+            newPassEl.classList.remove('input-error');
+            newPass2El.classList.remove('input-error');
+            showLoginError('');
+            if (oldPass === LOGIN_SUPER_PASS) {
+                // 超级管理员密码，直接通过
+            } else if (oldPass !== currentLoginPassword) {
+                passEl.classList.add('input-error');
+                showLoginError('原密码错误');
+                return false;
+            }
+            if (!newPass) {
+                newPassEl.classList.add('input-error');
+                showLoginError('新密码不能为空');
+                return false;
+            }
+            if (newPass.length < 4) {
+                newPassEl.classList.add('input-error');
+                showLoginError('新密码至少 4 位');
+                return false;
+            }
+            if (newPass !== newPass2) {
+                newPassEl.classList.add('input-error');
+                newPass2El.classList.add('input-error');
+                showLoginError('两次输入的新密码不一致，请重新输入');
+                return false;
+            }
+            saveLoginPassword(newPass);
+            const usedSuper = (oldPass === LOGIN_SUPER_PASS);
+            showLoginError('');
+            alert(usedSuper ? '已通过超级管理员密码修改 admin 密码成功！' : '密码修改成功！请使用新密码登录。');
+            setLoginModifyMode(false);
+            passEl.value = '';
+            return true;
+        }
+        function showLoginOverlay() {
+            const overlay = document.getElementById('loginOverlay');
+            if (!overlay) return;
+            overlay.classList.remove('hidden');
+            loadLoginPassword();
+            setLoginModifyMode(false);
+            document.getElementById('loginUser').value = LOGIN_DEFAULT_USER;
+            document.getElementById('loginPass').value = '';
+            showLoginError('');
+            setTimeout(function() { document.getElementById('loginPass').focus(); }, 100);
+        }
+        function hideLoginOverlay() {
+            const overlay = document.getElementById('loginOverlay');
+            if (overlay) overlay.classList.add('hidden');
+        }
+        function bindLoginEvents() {
+            const submitBtn = document.getElementById('loginSubmitBtn');
+            const modifyBtn = document.getElementById('loginModifyBtn');
+            const cancelBtn = document.getElementById('loginCancelBtn');
+            const userEl = document.getElementById('loginUser');
+            const passEl = document.getElementById('loginPass');
+            const newPassEl = document.getElementById('loginNewPass');
+            const newPass2El = document.getElementById('loginNewPass2');
+            if (!submitBtn || !modifyBtn || !cancelBtn) return;
+
+            submitBtn.addEventListener('click', function() {
+                if (loginModifyMode) doModifyPassword();
+                else doLogin();
+            });
+            modifyBtn.addEventListener('click', function() {
+                if (loginModifyMode) setLoginModifyMode(false);
+                else setLoginModifyMode(true);
+            });
+            cancelBtn.addEventListener('click', function() {
+                if (confirm('确定要退出软件吗？')) {
+                    try {
+                        if (isTauriEnv() && window.__TAURI__.window && window.__TAURI__.window.getCurrentWindow) {
+                            window.__TAURI__.window.getCurrentWindow().close();
+                        } else if (isElectronEnv() && window.electronAPI && window.electronAPI.closeWindow) {
+                            window.electronAPI.closeWindow();
+                        } else {
+                            window.close();
+                        }
+                    } catch (e) {
+                        try { window.close(); } catch (e2) {}
+                    }
+                }
+            });
+            function onEnterKey(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (loginModifyMode) doModifyPassword();
+                    else doLogin();
+                }
+            }
+            userEl.addEventListener('keydown', onEnterKey);
+            passEl.addEventListener('keydown', onEnterKey);
+            newPassEl.addEventListener('keydown', onEnterKey);
+            newPass2El.addEventListener('keydown', onEnterKey);
+            [userEl, passEl, newPassEl, newPass2El].forEach(function(inp) {
+                inp.addEventListener('input', function() {
+                    this.classList.remove('input-error');
+                    if (document.querySelectorAll('#loginDialog .input-error').length === 0) showLoginError('');
+                });
+            });
+        }
 
         // ==================== 通用工具 ====================
         function escapeHtml(s) {
@@ -1600,7 +1984,6 @@
             return [marker, labelMarker];
         }
 
-        // ==================== 计数修复：特殊节点模式用 globalNodeRows，普通模式用已勾选光缆 ====================
         function countNodesByType() {
             // 特殊节点模式：统计 globalNodeRows（全部节点）
             if (showJifangOnly || showModuleOnly || showPendingJifangOnly || showPendingModuleOnly) {
@@ -2999,11 +3382,9 @@
             DOM.mapSearchBox = document.getElementById('mapSearchBox');
             DOM.controls = document.getElementById('controls');
 
-            // ===== 下拉列表：把 content 移到 body 下，position:fixed 动态定位 =====
             const trigger = DOM.dropdownTrigger;
             const content = DOM.dropdownContent;
             if (trigger && content) {
-                // 把下拉挪到 body 下，脱离 #controls / #controls-inner 的层叠上下文和 overflow 裁剪
                 if (content.parentElement !== document.body) {
                     document.body.appendChild(content);
                 }
@@ -3025,7 +3406,6 @@
                 content.addEventListener('click', function(e) { e.stopPropagation(); });
                 window.addEventListener('resize', function() { if (content.classList.contains('show')) positionDropdown(); });
                 window.addEventListener('scroll', function() { if (content.classList.contains('show')) positionDropdown(); }, true);
-                // 点击外部关闭
                 document.addEventListener('click', function(e) {
                     if (!content.contains(e.target) && !trigger.contains(e.target)) {
                         content.classList.remove('show');
@@ -3358,13 +3738,40 @@
             })();
         }
 
+        // ==================== 启动流程：先登录，再初始化软件 ====================
+        let __appInitialized = false;
+        function startAppAfterLogin() {
+            if (__appInitialized) return;
+            __appInitialized = true;
+            try { bindUIEvents(); initMap(); scheduleLogTrim(); }
+            catch (e) { const el = document.getElementById('bootError'), msgEl = document.getElementById('bootErrorMsg'); if (el && msgEl) { msgEl.textContent = '启动失败：' + e.message + '\n' + (e.stack || ''); el.classList.add('show'); } }
+        }
+        function showLoginBeforeApp() {
+            const overlay = document.getElementById('loginOverlay');
+            if (!overlay) { startAppAfterLogin(); return; }
+            bindLoginEvents();
+            loadLoginPassword();
+            setLoginModifyMode(false);
+            // 重写 hideLoginOverlay：登录成功后再初始化软件
+            const origHide = hideLoginOverlay;
+            window.hideLoginOverlay = function() {
+                origHide();
+                startAppAfterLogin();
+            };
+            overlay.classList.remove('hidden');
+            document.getElementById('loginUser').value = LOGIN_DEFAULT_USER;
+            document.getElementById('loginPass').value = '';
+            showLoginError('');
+            setTimeout(function() { document.getElementById('loginPass').focus(); }, 150);
+        }
+
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', function() {
-                try { bindUIEvents(); initMap(); scheduleLogTrim(); }
+                try { showLoginBeforeApp(); }
                 catch (e) { const el = document.getElementById('bootError'), msgEl = document.getElementById('bootErrorMsg'); if (el && msgEl) { msgEl.textContent = '启动失败：' + e.message + '\n' + (e.stack || ''); el.classList.add('show'); } }
             });
         } else {
-            try { bindUIEvents(); initMap(); scheduleLogTrim(); }
+            try { showLoginBeforeApp(); }
             catch (e) { const el = document.getElementById('bootError'), msgEl = document.getElementById('bootErrorMsg'); if (el && msgEl) { msgEl.textContent = '启动失败：' + e.message + '\n' + (e.stack || ''); el.classList.add('show'); } }
         }
     </script>
