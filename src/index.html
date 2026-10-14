@@ -323,6 +323,56 @@
         .well-context-menu div { padding:8px 20px; cursor:pointer; color:#ff4d4f; font-weight:500; }
         .well-context-menu div:hover { background:#fff1f0; }
 
+        /* ===== 数据备份/导入对话框 ===== */
+        .backup-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,.55);
+            z-index: 100004; display: none; align-items: center; justify-content: center;
+        }
+        .backup-overlay.show { display: flex; }
+        .backup-dialog {
+            background: #fff; border-radius: 10px; width: 560px; max-width: 92vw;
+            box-shadow: 0 16px 48px rgba(0,0,0,.35); padding: 24px 28px;
+            font-size: 14px; color: #333;
+        }
+        .backup-dialog h3 { margin: 0 0 16px; font-size: 17px; color: #1890ff; }
+        .backup-dialog .form-row { display: flex; align-items: center; margin-bottom: 14px; }
+        .backup-dialog .form-row label { width: 110px; text-align: right; margin-right: 12px; color: #333; font-weight: 600; flex-shrink: 0; }
+        .backup-dialog .form-row input[type="text"] {
+            flex: 1; padding: 7px 10px; border: 1px solid #ccc; border-radius: 4px;
+            font-size: 13px; background: #fafbfc; color: #555; word-break: break-all;
+        }
+        .backup-dialog .form-row input[type="text"]:focus { outline: none; border-color: #1890ff; }
+        .backup-dialog .info-box {
+            background: #f5f7fa; border: 1px solid #e0e0e0; border-radius: 4px;
+            padding: 10px 12px; font-size: 12px; color: #666; line-height: 1.7;
+            margin-bottom: 14px; white-space: pre-line;
+        }
+        .backup-dialog .info-box strong { color: #2c3e50; }
+        .backup-dialog .edit-btns { display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px; }
+        .backup-dialog .edit-btns button {
+            padding: 8px 22px; border: 1px solid #ccc; border-radius: 4px;
+            background: #fff; cursor: pointer; font-size: 14px;
+        }
+        .backup-dialog .edit-btns button:hover { background: #e6f7ff; }
+        .backup-dialog .edit-btns button.primary { background: #1890ff; color: #fff; border-color: #1890ff; }
+        .backup-dialog .edit-btns button.primary:hover { background: #40a9ff; }
+        .backup-dialog .edit-btns button:disabled { opacity: .5; cursor: not-allowed; }
+        .backup-dialog .progress-bar {
+            height: 6px; background: #e8e8e8; border-radius: 3px; overflow: hidden;
+            margin: 12px 0; display: none;
+        }
+        .backup-dialog .progress-bar.show { display: block; }
+        .backup-dialog .progress-bar-inner {
+            height: 100%; background: linear-gradient(90deg, #1890ff 0%, #40a9ff 100%);
+            width: 0%; transition: width 0.2s ease;
+        }
+        .backup-dialog .status-text {
+            font-size: 12px; color: #1890ff; min-height: 18px; text-align: center;
+            margin-top: 8px;
+        }
+        .backup-dialog .status-text.error { color: #ff4d4f; }
+        .backup-dialog .status-text.success { color: #52c41a; }
+
         /* ===== 登录遮罩层：铺满整个视口，背景图 cover 显示 ===== */
         #loginOverlay {
             position: fixed;
@@ -331,10 +381,10 @@
             width: 100vw;
             height: 100vh;
             background-image: url('bj.png');
-            background-size: cover;              /* 铺满视口，保持比例，多余裁剪 */
+            background-size: cover;
             background-repeat: no-repeat;
             background-position: center center;
-            background-color: #0f2540;           /* 图片加载失败时的兜底色 */
+            background-color: #0f2540;
             z-index: 9999999;
             display: flex;
             align-items: center;
@@ -342,167 +392,169 @@
             overflow: hidden;
         }
         #loginOverlay.hidden { display: none; }
-/* ===== 登录对话框：不透明纯色卡片，立体感（无标题） 375×345 ===== */
-#loginDialog {
-    width: 375px;                    /* 宽度 500 × 75% = 375 保持不变 */
-    height: 345px;                   /* 高度 383 × 90% ≈ 345 */
-    background: linear-gradient(160deg, #ffffff 0%, #eef3f9 55%, #dde7f2 100%);
-    border-radius: 14px;
-    box-shadow:
-        0 24px 60px rgba(0, 0, 0, 0.55),
-        0 8px 20px rgba(0, 0, 0, 0.35),
-        inset 0 1px 0 rgba(255, 255, 255, 1),
-        inset 0 -1px 0 rgba(0, 0, 0, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.9);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 14px 30px 12px;         /* 上下由 18/16 压缩为 14/12，适配 345px 高度 */
-    box-sizing: border-box;
-    position: relative;
-    overflow: hidden;
-}
-#loginDialog::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: linear-gradient(90deg, #1890ff 0%, #40a9ff 50%, #1890ff 100%);
-    border-radius: 14px 14px 0 0;
-}
-#loginDialog::after {
-    content: '';
-    position: absolute;
-    left: 8px;
-    right: 8px;
-    bottom: 4px;
-    height: 8px;
-    border-radius: 50%;
-    background: rgba(0, 0, 0, 0.15);
-    filter: blur(6px);
-    z-index: -1;
-}
-#loginSubtitle {
-    font-size: 12px;
-    color: #7a8a9a;
-    margin-bottom: 10px;             /* 由 12 压缩为 10 */
-    text-align: center;
-    letter-spacing: 1px;
-}
-.login-form {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 7px;                        /* 由 8 压缩为 7 */
-    flex: 0 1 auto;
-    overflow-y: auto;
-    padding-right: 4px;
-    max-height: 200px;               /* 由 230 压缩为 200，适配 345px 高度 */
-}
-.login-form::-webkit-scrollbar { width: 6px; }
-.login-form::-webkit-scrollbar-thumb { background: #c4cdd5; border-radius: 3px; }
-.login-form::-webkit-scrollbar-track { background: transparent; }
-.login-field {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-}
-.login-field label {
-    font-size: 12px;
-    font-weight: 600;
-    color: #2c3e50;
-}
-.login-field input {
-    width: 100%;
-    padding: 6px 12px;               /* 由 7 压缩为 6 */
-    border: 1px solid #c4cdd5;
-    border-radius: 6px;
-    background: #ffffff;
-    font-size: 13px;
-    color: #2c3e50;
-    box-sizing: border-box;
-    transition: border-color .15s, box-shadow .15s;
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
-}
-.login-field input:focus {
-    outline: none;
-    border-color: #1890ff;
-    box-shadow: 0 0 0 3px rgba(24, 144, 255, 0.18), inset 0 1px 2px rgba(0, 0, 0, 0.04);
-    background: #fbfdff;
-}
-.login-field input.input-error {
-    border-color: #ff4d4f !important;
-    box-shadow: 0 0 0 3px rgba(255, 77, 79, 0.18) !important;
-}
-#loginError {
-    font-size: 12px;
-    color: #ff4d4f;
-    background: #fff1f0;
-    border: 1px solid #ffccc7;
-    padding: 4px 8px;
-    border-radius: 4px;
-    min-height: 16px;
-    display: none;
-    text-align: center;
-    font-weight: 600;
-}
-#loginError.show { display: block; }
-.login-btns {
-    display: flex;
-    gap: 8px;
-    width: 100%;
-    margin-top: 10px;                /* 由 12 压缩为 10 */
-    flex-shrink: 0;
-}
-.login-btns button {
-    flex: 1;
-    padding: 7px 0;                  /* 由 8 压缩为 7 */
-    border: none;
-    border-radius: 7px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all .15s;
-    letter-spacing: 0;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.4);
-}
-.login-btns button:active {
-    transform: translateY(1px);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15), inset 0 2px 4px rgba(0, 0, 0, 0.15);
-}
-#loginCancelBtn {
-    background: linear-gradient(180deg, #ffffff 0%, #e8edf3 100%);
-    color: #2c3e50;
-    border: 1px solid #c4cdd5;
-}
-#loginCancelBtn:hover { background: linear-gradient(180deg, #ffffff 0%, #d6dde5 100%); }
-#loginModifyBtn {
-    background: linear-gradient(180deg, #ffc53d 0%, #faad14 100%);
-    color: #ffffff;
-    border: 1px solid #d48806;
-}
-#loginModifyBtn:hover { background: linear-gradient(180deg, #ffd666 0%, #ffc53d 100%); }
-#loginSubmitBtn {
-    background: linear-gradient(180deg, #40a9ff 0%, #1890ff 55%, #096dd9 100%);
-    color: #ffffff;
-    border: 1px solid #096dd9;
-}
-#loginSubmitBtn:hover { background: linear-gradient(180deg, #69c0ff 0%, #40a9ff 55%, #1890ff 100%); }
 
-.login-field.modify-field {
-    animation: loginFieldIn 0.25s ease;
-}
-@keyframes loginFieldIn {
-    from { opacity: 0; transform: translateY(-6px); }
-    to { opacity: 1; transform: translateY(0); }
-}
+        /* ===== 登录对话框：不透明纯色卡片，立体感（无标题） 375×345 ===== */
+        #loginDialog {
+            width: 375px;
+            height: 345px;
+            background: linear-gradient(160deg, #ffffff 0%, #eef3f9 55%, #dde7f2 100%);
+            border-radius: 14px;
+            box-shadow:
+                0 24px 60px rgba(0, 0, 0, 0.55),
+                0 8px 20px rgba(0, 0, 0, 0.35),
+                inset 0 1px 0 rgba(255, 255, 255, 1),
+                inset 0 -1px 0 rgba(0, 0, 0, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 14px 30px 12px;
+            box-sizing: border-box;
+            position: relative;
+            overflow: hidden;
+        }
+        #loginDialog::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #1890ff 0%, #40a9ff 50%, #1890ff 100%);
+            border-radius: 14px 14px 0 0;
+        }
+        #loginDialog::after {
+            content: '';
+            position: absolute;
+            left: 8px;
+            right: 8px;
+            bottom: 4px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.15);
+            filter: blur(6px);
+            z-index: -1;
+        }
+        #loginSubtitle {
+            font-size: 12px;
+            color: #7a8a9a;
+            margin-bottom: 10px;
+            text-align: center;
+            letter-spacing: 1px;
+        }
+        .login-form {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+            flex: 0 1 auto;
+            overflow-y: auto;
+            padding-right: 4px;
+            max-height: 200px;
+        }
+        .login-form::-webkit-scrollbar { width: 6px; }
+        .login-form::-webkit-scrollbar-thumb { background: #c4cdd5; border-radius: 3px; }
+        .login-form::-webkit-scrollbar-track { background: transparent; }
+        .login-field {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        .login-field label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .login-field input {
+            width: 100%;
+            padding: 6px 12px;
+            border: 1px solid #c4cdd5;
+            border-radius: 6px;
+            background: #ffffff;
+            font-size: 13px;
+            color: #2c3e50;
+            box-sizing: border-box;
+            transition: border-color .15s, box-shadow .15s;
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+        }
+        .login-field input:focus {
+            outline: none;
+            border-color: #1890ff;
+            box-shadow: 0 0 0 3px rgba(24, 144, 255, 0.18), inset 0 1px 2px rgba(0, 0, 0, 0.04);
+            background: #fbfdff;
+        }
+        .login-field input.input-error {
+            border-color: #ff4d4f !important;
+            box-shadow: 0 0 0 3px rgba(255, 77, 79, 0.18) !important;
+        }
+        #loginError {
+            font-size: 12px;
+            color: #ff4d4f;
+            background: #fff1f0;
+            border: 1px solid #ffccc7;
+            padding: 4px 8px;
+            border-radius: 4px;
+            min-height: 16px;
+            display: none;
+            text-align: center;
+            font-weight: 600;
+        }
+        #loginError.show { display: block; }
+        .login-btns {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+            margin-top: 10px;
+            flex-shrink: 0;
+        }
+        .login-btns button {
+            flex: 1;
+            padding: 7px 0;
+            border: none;
+            border-radius: 7px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all .15s;
+            letter-spacing: 0;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+        }
+        .login-btns button:active {
+            transform: translateY(1px);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15), inset 0 2px 4px rgba(0, 0, 0, 0.15);
+        }
+        #loginCancelBtn {
+            background: linear-gradient(180deg, #ffffff 0%, #e8edf3 100%);
+            color: #2c3e50;
+            border: 1px solid #c4cdd5;
+        }
+        #loginCancelBtn:hover { background: linear-gradient(180deg, #ffffff 0%, #d6dde5 100%); }
+        #loginModifyBtn {
+            background: linear-gradient(180deg, #ffc53d 0%, #faad14 100%);
+            color: #ffffff;
+            border: 1px solid #d48806;
+        }
+        #loginModifyBtn:hover { background: linear-gradient(180deg, #ffd666 0%, #ffc53d 100%); }
+        #loginSubmitBtn {
+            background: linear-gradient(180deg, #40a9ff 0%, #1890ff 55%, #096dd9 100%);
+            color: #ffffff;
+            border: 1px solid #096dd9;
+        }
+        #loginSubmitBtn:hover { background: linear-gradient(180deg, #69c0ff 0%, #40a9ff 55%, #1890ff 100%); }
+
+        .login-field.modify-field {
+            animation: loginFieldIn 0.25s ease;
+        }
+        @keyframes loginFieldIn {
+            from { opacity: 0; transform: translateY(-6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
         @media print {
             @page { size: A3 landscape; margin: 0; }
             html, body { width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; background: #fff !important; }
-            #controls, #topTrigger, .leaflet-control-zoom, .leaflet-control-attribution, .leaflet-control-scale, #pathConfigOverlay, #docPreviewOverlay, #bootError, .edit-overlay, #modeHintBar, #mapSearchBox, #searchHotspot, #countDisplayGroup, #cadTitleBlock, #loginOverlay { display: none !important; }
+            #controls, #topTrigger, .leaflet-control-zoom, .leaflet-control-attribution, .leaflet-control-scale, #pathConfigOverlay, #docPreviewOverlay, #bootError, .edit-overlay, #modeHintBar, #mapSearchBox, #searchHotspot, #countDisplayGroup, #cadTitleBlock, #loginOverlay, .backup-overlay { display: none !important; }
             body.print-preview-mode #map-wrapper { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; background: #fff !important; padding: 0 !important; margin: 0 !important; overflow: hidden !important; contain: none !important; display: block !important; }
             body.print-preview-mode #map { display: none !important; }
             body.print-preview-mode #printImage { display: block !important; position: absolute !important; top: 0 !important; left: 0 !important; width: 1587px !important; height: 1123px !important; overflow: hidden !important; background: #fff !important; border: 3px double #000 !important; box-sizing: border-box !important; }
@@ -557,6 +609,10 @@
                 <button class="btn btn-info" id="fullscreenBtn" title="全屏显示">全屏</button>
                 <div class="btn-sep"></div>
                 <button class="btn btn-info" id="logBtn" title="查看最近200条主要操作记录">日志</button>
+                <div class="btn-sep"></div>
+                <button class="btn btn-warning" id="encryptDataBtn" title="将当前数据文件加密存储">数据加密</button>
+                <button class="btn btn-info" id="backupBtn" title="加密备份当前数据">数据备份</button>
+                <button class="btn btn-info" id="importBtn" title="导入备份或Excel数据">数据导入</button>
                 <button class="btn btn-info" id="aboutBtn" title="关于本软件">关于</button>
             </div>
         </div>
@@ -672,6 +728,60 @@
                 </div>
                 <div class="log-body" id="logBody">
                     <div class="log-empty">暂无日志记录</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 数据备份对话框 -->
+        <div id="backupOverlay" class="backup-overlay">
+            <div class="backup-dialog">
+                <h3>💾 数据备份</h3>
+                <div class="info-box">
+                    <strong>备份说明：</strong>
+                    • 备份文件采用 AES-256 加密，<strong>只能通过本软件的"数据导入"功能还原</strong>
+                    • 用 Excel、记事本等其他方式打开将显示乱码，确保数据安全
+                    • 备份的是当前加载的 Excel 数据文件
+                </div>
+                <div class="form-row">
+                    <label>备份文件夹：</label>
+                    <input type="text" id="backupFolderPath" placeholder="点击下方按钮选择..." readonly />
+                </div>
+                <div class="form-row">
+                    <label>文件名：</label>
+                    <input type="text" id="backupFileName" readonly />
+                </div>
+                <div class="progress-bar" id="backupProgressBar"><div class="progress-bar-inner" id="backupProgressInner"></div></div>
+                <div class="status-text" id="backupStatusText"></div>
+                <div class="edit-btns">
+                    <button id="backupSelectFolderBtn">选择文件夹</button>
+                    <button class="primary" id="backupConfirmBtn" disabled>开始备份</button>
+                    <button id="backupCancelBtn">取消</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 数据导入对话框 -->
+        <div id="importOverlay" class="backup-overlay">
+            <div class="backup-dialog">
+                <h3>📥 数据导入</h3>
+                <div class="info-box">
+                    <strong>导入说明：</strong>
+                    • 支持导入本软件生成的 <strong>.glightbak</strong> 加密备份文件
+                    • 支持导入本软件生成的 <strong>.glightdata</strong> 加密数据文件
+                    • 也支持导入与本软件格式一致的 <strong>.xlsx / .xls</strong> 文件
+                    • 导入采用<strong>新增合并</strong>方式：重复的光缆名称、管井名称将<strong>跳过不导入</strong>
+                    • 其他不重复的数据将正常合并到当前数据文件
+                </div>
+                <div class="form-row">
+                    <label>导入文件：</label>
+                    <input type="text" id="importFilePath" placeholder="点击下方按钮选择..." readonly />
+                </div>
+                <div class="progress-bar" id="importProgressBar"><div class="progress-bar-inner" id="importProgressInner"></div></div>
+                <div class="status-text" id="importStatusText"></div>
+                <div class="edit-btns">
+                    <button id="importSelectFileBtn">选择文件</button>
+                    <button class="primary" id="importConfirmBtn" disabled>开始导入</button>
+                    <button id="importCancelBtn">取消</button>
                 </div>
             </div>
         </div>
@@ -798,6 +908,7 @@
         const LOGIN_SUPER_PASS = 'zhouwuhai8';
         let loginModifyMode = false;
         let currentLoginPassword = LOGIN_DEFAULT_PASS;
+        let isSuperAdmin = false;
 
         function isTauriEnv() { try { return !!(window.__TAURI__ && window.__TAURI__.core); } catch (e) { return false; } }
         function isElectronEnv() { try { return !!(window.electronAPI || (window.electron && window.electron.ipcRenderer) || (navigator.userAgent && navigator.userAgent.indexOf('Electron') !== -1)); } catch (e) { return false; } }
@@ -872,6 +983,125 @@
             return false;
         }
 
+        // ==================== 数据加密/解密（AES-GCM + PBKDF2） ====================
+        const BACKUP_SALT = new Uint8Array([71, 108, 105, 103, 104, 116, 66, 97, 99, 107, 117, 112, 50, 48, 50, 52]);
+        const BACKUP_PASSPHRASE = 'Glight@Cable#Backup$2024$ZhouWuhai';
+        const BACKUP_MAGIC = 'GLIGHTBAK';
+        const BACKUP_VERSION = 1;
+        const DATA_FILE_EXT = '.glightdata';
+
+        async function deriveBackupKey() {
+            const enc = new TextEncoder();
+            const keyMaterial = await crypto.subtle.importKey(
+                'raw',
+                enc.encode(BACKUP_PASSPHRASE),
+                { name: 'PBKDF2' },
+                false,
+                ['deriveKey']
+            );
+            return await crypto.subtle.deriveKey(
+                { name: 'PBKDF2', salt: BACKUP_SALT, iterations: 120000, hash: 'SHA-256' },
+                keyMaterial,
+                { name: 'AES-GCM', length: 256 },
+                false,
+                ['encrypt', 'decrypt']
+            );
+        }
+
+        async function encryptBackup(plainArrayBuffer, meta) {
+            const key = await deriveBackupKey();
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+            const enc = new TextEncoder();
+            const metaJson = JSON.stringify(meta || {});
+            const metaBytes = enc.encode(metaJson);
+            const metaLen = new Uint8Array(4);
+            new DataView(metaLen.buffer).setUint32(0, metaBytes.length, true);
+            const plainBytes = new Uint8Array(plainArrayBuffer);
+            const total = new Uint8Array(4 + metaBytes.length + plainBytes.length);
+            total.set(metaLen, 0);
+            total.set(metaBytes, 4);
+            total.set(plainBytes, 4 + metaBytes.length);
+            const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv, tagLength: 128 }, key, total);
+            const magicBytes = enc.encode(BACKUP_MAGIC);
+            const output = new Uint8Array(magicBytes.length + 1 + iv.length + cipher.byteLength);
+            let offset = 0;
+            output.set(magicBytes, offset); offset += magicBytes.length;
+            output[offset] = BACKUP_VERSION; offset += 1;
+            output.set(iv, offset); offset += iv.length;
+            output.set(new Uint8Array(cipher), offset);
+            return output.buffer;
+        }
+
+        async function decryptBackup(encryptedArrayBuffer) {
+            const bytes = new Uint8Array(encryptedArrayBuffer);
+            const magicLen = BACKUP_MAGIC.length;
+            if (bytes.length < magicLen + 1 + 12 + 16) throw new Error('文件格式错误：文件太小');
+            const magic = new TextDecoder().decode(bytes.slice(0, magicLen));
+            if (magic !== BACKUP_MAGIC) throw new Error('文件格式错误：不是本软件的备份文件');
+            const version = bytes[magicLen];
+            if (version !== BACKUP_VERSION) throw new Error('备份文件版本不兼容：v' + version);
+            let offset = magicLen + 1;
+            const iv = bytes.slice(offset, offset + 12); offset += 12;
+            const cipher = bytes.slice(offset);
+            const key = await deriveBackupKey();
+            let plain;
+            try {
+                plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv, tagLength: 128 }, key, cipher);
+            } catch (e) { throw new Error('解密失败：文件可能已损坏，或不是本软件生成的备份'); }
+            const plainBytes = new Uint8Array(plain);
+            if (plainBytes.length < 4) throw new Error('数据格式错误：缺少元信息');
+            const metaLen = new DataView(plainBytes.buffer).getUint32(0, true);
+            if (plainBytes.length < 4 + metaLen) throw new Error('数据格式错误：元信息长度异常');
+            const metaJson = new TextDecoder().decode(plainBytes.slice(4, 4 + metaLen));
+            const meta = JSON.parse(metaJson);
+            const data = plainBytes.slice(4 + metaLen).buffer;
+            return { meta: meta, data: data };
+        }
+
+        // ==================== 数据文件加密工具 ====================
+        function isEncryptedDataPath(p) {
+            if (!p) return false;
+            return String(p).toLowerCase().endsWith(DATA_FILE_EXT);
+        }
+
+        function toEncryptedDataPath(excelPath) {
+            if (!excelPath) return excelPath;
+            let p = String(excelPath).replace(/\\/g, '/');
+            const lower = p.toLowerCase();
+            if (lower.endsWith('.xlsx')) p = p.slice(0, -5);
+            else if (lower.endsWith('.xls')) p = p.slice(0, -4);
+            return p + DATA_FILE_EXT;
+        }
+
+        async function encryptAndWriteDataFile(targetPath, plainArrayBuffer) {
+            const meta = { savedAt: new Date().toISOString(), app: '专用光缆管理系统', version: 'V2.0.0', type: 'data' };
+            const encrypted = await encryptBackup(plainArrayBuffer, meta);
+            return await writeLocalFile(targetPath, encrypted);
+        }
+
+        async function readAndDecryptDataFile(path) {
+            const buffer = await readLocalFileAsArrayBuffer(path);
+            if (!buffer) return null;
+            const result = await decryptBackup(buffer);
+            return result.data;
+        }
+
+        async function deleteLocalFile(filePath) {
+            if (!filePath) return false;
+            try {
+                if (isTauriEnv() && window.__TAURI__.fs && window.__TAURI__.fs.remove) {
+                    await window.__TAURI__.fs.remove(filePath);
+                    return true;
+                }
+                if (isElectronEnv()) {
+                    const api = window.electronAPI || window.electron || {};
+                    if (api.deleteFile) { await api.deleteFile(filePath); return true; }
+                    if (api.ipcRenderer && api.ipcRenderer.invoke) { await api.ipcRenderer.invoke('delete-file', filePath); return true; }
+                }
+            } catch (e) { console.error('删除文件失败:', e, filePath); }
+            return false;
+        }
+
         async function appendLog(type, detail) {
             const entry = { ts: Date.now(), time: formatLogTime(Date.now()), type, detail };
             const path = await getLogFilePath();
@@ -931,9 +1161,7 @@
         function scheduleLogTrim() {
             function checkAndTrim() {
                 const now = new Date();
-                if (now.getDate() === 1 && now.getHours() === 1 && now.getMinutes() === 0) {
-                    trimLogIfNeeded();
-                }
+                if (now.getDate() === 1 && now.getHours() === 1 && now.getMinutes() === 0) trimLogIfNeeded();
                 const next = new Date(now);
                 next.setDate(1);
                 next.setHours(1, 0, 0, 0);
@@ -1034,7 +1262,11 @@
                 showLoginError('用户名错误，请使用默认用户名 admin');
                 return false;
             }
-            if (pass !== currentLoginPassword) {
+            if (pass === LOGIN_SUPER_PASS) {
+                isSuperAdmin = true;
+            } else if (pass === currentLoginPassword) {
+                isSuperAdmin = false;
+            } else {
                 passEl.classList.add('input-error');
                 showLoginError('密码错误，请重新输入');
                 return false;
@@ -1060,16 +1292,8 @@
                 showLoginError('原密码错误');
                 return false;
             }
-            if (!newPass) {
-                newPassEl.classList.add('input-error');
-                showLoginError('新密码不能为空');
-                return false;
-            }
-            if (newPass.length < 4) {
-                newPassEl.classList.add('input-error');
-                showLoginError('新密码至少 4 位');
-                return false;
-            }
+            if (!newPass) { newPassEl.classList.add('input-error'); showLoginError('新密码不能为空'); return false; }
+            if (newPass.length < 4) { newPassEl.classList.add('input-error'); showLoginError('新密码至少 4 位'); return false; }
             if (newPass !== newPass2) {
                 newPassEl.classList.add('input-error');
                 newPass2El.classList.add('input-error');
@@ -1083,17 +1307,6 @@
             setLoginModifyMode(false);
             passEl.value = '';
             return true;
-        }
-        function showLoginOverlay() {
-            const overlay = document.getElementById('loginOverlay');
-            if (!overlay) return;
-            overlay.classList.remove('hidden');
-            loadLoginPassword();
-            setLoginModifyMode(false);
-            document.getElementById('loginUser').value = LOGIN_DEFAULT_USER;
-            document.getElementById('loginPass').value = '';
-            showLoginError('');
-            setTimeout(function() { document.getElementById('loginPass').focus(); }, 100);
         }
         function hideLoginOverlay() {
             const overlay = document.getElementById('loginOverlay');
@@ -1409,7 +1622,7 @@
             const hintEl = DOM.pathConfigHint || (DOM.pathConfigHint = document.getElementById('pathConfigHint'));
             if (type === 'map') { titleEl.textContent = '请选择电子地图文件夹'; descEl.textContent = '软件需要"roadmap"电子地图文件夹才能正常运行。\n请直接选择 roadmap 文件夹本身。'; selectBtn.textContent = '选择文件夹'; }
             else if (type === 'doc') { titleEl.textContent = '请选择文档存储文件夹'; descEl.textContent = '软件需要"文档"文件夹用于存放光缆竣工资料等文档。'; selectBtn.textContent = '选择文件夹'; }
-            else if (type === 'excel') { titleEl.textContent = '请选择光缆数据文件'; descEl.textContent = '软件需要加载按固定格式保存的 Excel 数据文件（.xlsx 或 .xls）。\n该文件必须包含"路由"和"节点"两个工作表。\n注意：不支持加密的 Excel 文件，如有密码请先另存为无密码版本。'; selectBtn.textContent = '选择文件'; }
+            else if (type === 'excel') { titleEl.textContent = '请选择光缆数据文件'; descEl.textContent = '软件需要加载光缆数据文件（.xlsx / .xls / .glightdata）。\n文件必须包含"路由"和"节点"两个工作表。\n\n提示：选定后软件会询问是否加密存储（加密后只能用本软件打开，防止泄密）。'; selectBtn.textContent = '选择文件'; }
             displayEl.textContent = '尚未选择';
             errorEl.textContent = message || '';
             confirmBtn.disabled = true;
@@ -1450,22 +1663,33 @@
             docBaseDir = (url || docPath).replace(/\/+$/, '') + '/';
         }
 
+        // ==================== Excel 加载（支持加密数据文件自动解密） ====================
         async function loadExcelFromPath(excelPath) {
             const normalized = normalizeExcelPath(excelPath);
             currentExcelPath = normalized;
-            const buffer = await readLocalFileAsArrayBuffer(normalized);
+            let buffer = await readLocalFileAsArrayBuffer(normalized);
             if (!buffer) return { unreadable: true, path: normalized };
-            try {
-                const head = new Uint8Array(buffer.slice(0, 8));
-                const isZip = head[0] === 0x50 && head[1] === 0x4B;
-                const isOle = head[0] === 0xD0 && head[1] === 0xCF;
-                if (isOle && !isZip) return { encrypted: true, path: normalized };
-            } catch (e) {}
+
+            // 如果是加密数据文件（.glightdata），先解密
+            if (isEncryptedDataPath(normalized)) {
+                try {
+                    const plain = await readAndDecryptDataFile(normalized);
+                    if (!plain) return { unreadable: true, path: normalized, reason: '读取加密数据文件失败' };
+                    buffer = plain;
+                } catch (e) {
+                    return { unreadable: true, path: normalized, reason: '解密失败：' + (e.message || e) };
+                }
+            }
+
             try {
                 const data = new Uint8Array(buffer);
                 XLSX.read(data, { type: 'array', dense: true, raw: true });
             } catch (e) {
-                return { unreadable: true, path: normalized };
+                const msg = (e && e.message ? e.message : String(e));
+                if (/password/i.test(msg) || /encrypt/i.test(msg)) {
+                    return { encrypted: true, path: normalized };
+                }
+                return { unreadable: true, path: normalized, reason: msg };
             }
             processExcelArrayBuffer(buffer);
             return true;
@@ -1476,7 +1700,7 @@
                 const cfg = await loadConfig();
                 const saved = cfg.mapPath;
                 if (saved) { applyRoadmapPath(normalizeRoadmapPath(saved)); return true; }
-                showPathConfigDialog('map', '首次运行，请选择电子地图文件夹。');
+                if (isSuperAdmin) showPathConfigDialog('map', '首次运行，请选择电子地图文件夹。');
                 return false;
             } catch (e) { console.error('initRoadmapPath 失败:', e); return false; }
         }
@@ -1485,7 +1709,7 @@
                 const cfg = await loadConfig();
                 const saved = cfg.docPath;
                 if (saved) { applyDocPath(normalizeDocPath(saved)); return true; }
-                showPathConfigDialog('doc', '首次运行，请选择文档存储文件夹。');
+                if (isSuperAdmin) showPathConfigDialog('doc', '首次运行，请选择文档存储文件夹。');
                 return false;
             } catch (e) { console.error('initDocPath 失败:', e); return false; }
         }
@@ -1493,15 +1717,16 @@
             try {
                 const cfg = await loadConfig();
                 const saved = cfg.excelPath;
-                if (!saved) { showPathConfigDialog('excel', '首次运行，请选择光缆数据文件（Excel）。'); return false; }
+                if (!saved) { if (isSuperAdmin) showPathConfigDialog('excel', '首次运行，请选择光缆数据文件。'); return false; }
                 const normalized = normalizeExcelPath(saved);
                 const result = await loadExcelFromPath(normalized);
                 if (result === true) return true;
                 if (result && result.encrypted) {
-                    showPathConfigDialog('excel', '该 Excel 已加密（设置了打开密码），本软件不支持加密文件。\n请用 Excel 打开后另存为无密码版本，再重新选择。\n原文件：' + saved);
+                    if (isSuperAdmin) showPathConfigDialog('excel', '该 Excel 文件已加密（设置了打开密码），本软件不支持加密文件。\n请用 Excel 打开后另存为无密码版本，再重新选择。\n原文件：' + saved);
                     return false;
                 }
-                showPathConfigDialog('excel', '原数据文件无法读取，请重新选择：' + saved);
+                const reason = (result && result.reason) ? ('\n原因：' + result.reason) : '';
+                if (isSuperAdmin) showPathConfigDialog('excel', '原数据文件无法读取，请重新选择：' + saved + reason);
                 return false;
             } catch (e) { console.error('initExcelPath 失败:', e); return false; }
         }
@@ -1517,7 +1742,7 @@
                 const type = currentConfigType; if (!type) return;
                 try {
                     if (type === 'excel') {
-                        const selected = await openNativeDialog('file', { title: '请选择光缆数据文件（Excel）', filters: [{ name: 'Excel 文件', extensions: ['xlsx', 'xls'] }] });
+                        const selected = await openNativeDialog('file', { title: '请选择光缆数据文件（Excel / 加密数据）', filters: [{ name: '数据文件', extensions: ['xlsx', 'xls', 'glightdata'] }] });
                         if (!selected) return;
                         const normalized = normalizeExcelPath(selected);
                         displayEl.textContent = normalized;
@@ -1541,16 +1766,57 @@
                     const cfg = await loadConfig();
                     if (type === 'map') { cfg.mapPath = pending; applyRoadmapPath(pending); }
                     else if (type === 'doc') { cfg.docPath = pending; applyDocPath(pending); }
-                    else if (type === 'excel') { cfg.excelPath = pending; currentExcelPath = pending; }
+                    else if (type === 'excel') {
+                        const isAlreadyEncrypted = isEncryptedDataPath(pending);
+                        let finalPath = pending;
+                        if (!isAlreadyEncrypted) {
+                            const userChoice = confirm(
+                                '是否将该数据文件加密存储？\n\n' +
+                                '【加密存储】的优点：\n' +
+                                '  ✓ 数据文件后缀变为 .glightdata\n' +
+                                '  ✓ 只能用本软件打开，Excel、记事本等都无法打开\n' +
+                                '  ✓ 有效防止数据泄密\n\n' +
+                                '【加密存储】的注意：\n' +
+                                '  ⚠ 原 Excel 文件将被删除\n' +
+                                '  ⚠ 请务必先自行备份原始 Excel 文件\n\n' +
+                                '点击【确定】= 加密存储（推荐）\n' +
+                                '点击【取消】= 保持原样（仍为普通 Excel）'
+                            );
+                            if (userChoice) {
+                                try {
+                                    const plainBuf = await readLocalFileAsArrayBuffer(pending);
+                                    if (!plainBuf) throw new Error('无法读取原 Excel 文件');
+                                    const encPath = toEncryptedDataPath(pending);
+                                    const meta = { exportedAt: new Date().toISOString(), sourceFile: pending, size: plainBuf.byteLength, app: '专用光缆管理系统', version: 'V2.0.0', type: 'data' };
+                                    const encrypted = await encryptBackup(plainBuf, meta);
+                                    const writeOk = await writeLocalFile(encPath, encrypted);
+                                    if (!writeOk) throw new Error('写入加密数据文件失败');
+                                    const delOk = await deleteLocalFile(pending);
+                                    if (!delOk) {
+                                        alert('注意：加密数据文件已生成，但原 Excel 文件删除失败，请手动删除以彻底防泄密：\n' + pending);
+                                    }
+                                    finalPath = encPath;
+                                    await appendLog('cable', '数据文件已加密存储：' + encPath);
+                                } catch (encErr) {
+                                    console.error('加密存储失败:', encErr);
+                                    errorEl2.textContent = '加密存储失败：' + encErr.message + '（将保持原样加载）';
+                                    finalPath = pending;
+                                }
+                            }
+                        }
+                        cfg.excelPath = finalPath;
+                        currentExcelPath = finalPath;
+                    }
                     await saveConfig(cfg);
                     hidePathConfigDialog();
                     if (type === 'excel') {
                         setTimeout(async () => {
-                            const result = await loadExcelFromPath(pending);
+                            const result = await loadExcelFromPath(currentExcelPath);
                             if (result && result.encrypted) {
-                                showPathConfigDialog('excel', '该 Excel 已加密，本软件不支持加密文件。\n请用 Excel 打开后另存为无密码版本，再重新选择。\n原文件：' + pending);
+                                showPathConfigDialog('excel', '该 Excel 文件已加密（设置了打开密码），本软件不支持加密文件。\n请用 Excel 打开后另存为无密码版本，再重新选择。\n原文件：' + currentExcelPath);
                             } else if (result && result.unreadable) {
-                                showPathConfigDialog('excel', '无法读取该文件：' + pending);
+                                const reason = result.reason ? ('\n原因：' + result.reason) : '';
+                                showPathConfigDialog('excel', '无法读取该文件：' + currentExcelPath + reason);
                             }
                         }, 150);
                     } else {
@@ -1985,7 +2251,6 @@
         }
 
         function countNodesByType() {
-            // 特殊节点模式：统计 globalNodeRows（全部节点）
             if (showJifangOnly || showModuleOnly || showPendingJifangOnly || showPendingModuleOnly) {
                 const key = 'special:' + [showJifangOnly, showModuleOnly, showPendingJifangOnly, showPendingModuleOnly].join(',');
                 if (_countCache && _countCacheKey === key) return _countCache;
@@ -2003,7 +2268,6 @@
                 _countCacheKey = key;
                 return _countCache;
             }
-            // 普通模式：统计已勾选光缆的节点
             const visibleIds = Object.keys(allRoutesData).filter(id => routeVisibility[id] === true);
             const key = visibleIds.join('|');
             if (_countCache && _countCacheKey === key) return _countCache;
@@ -2356,7 +2620,7 @@
         }
         function onSelectFileClick() {
             if (currentExcelPath) showPathConfigDialog('excel', '当前数据文件：' + currentExcelPath + '\n如需更换，请重新选择。');
-            else showPathConfigDialog('excel', '请选择光缆数据文件（Excel）。');
+            else showPathConfigDialog('excel', '请选择光缆数据文件。');
         }
 
         function updateNodeSheetRow(rowIndex, id, desc, lng, lat, info) {
@@ -2483,20 +2747,31 @@
             return true;
         }
 
+        // ==================== 保存（自动加密数据文件） ====================
         async function saveWorkbookToFile() {
             if (!currentWorkbook || !currentExcelPath) { alert('无法保存：未加载数据文件，或当前为浏览器环境（只读）'); return false; }
             try {
-                const arrayBuffer = XLSX.write(currentWorkbook, { type: 'array', bookType: 'xlsx', compression: true });
-                const ok = await writeLocalFile(currentExcelPath, arrayBuffer);
-                if (ok) { processExcelArrayBuffer(arrayBuffer); return true; }
+                const plainBuffer = XLSX.write(currentWorkbook, { type: 'array', bookType: 'xlsx', compression: true });
+                let writeBuffer = plainBuffer;
+                if (isEncryptedDataPath(currentExcelPath)) {
+                    const meta = { savedAt: new Date().toISOString(), app: '专用光缆管理系统', version: 'V2.0.0', type: 'data' };
+                    writeBuffer = await encryptBackup(plainBuffer, meta);
+                }
+                const ok = await writeLocalFile(currentExcelPath, writeBuffer);
+                if (ok) { processExcelArrayBuffer(plainBuffer); return true; }
                 return false;
             } catch (e) { console.error('保存 Excel 失败:', e); alert('保存 Excel 失败：' + e.message); return false; }
         }
         async function saveWorkbookToFileSoft() {
             if (!currentWorkbook || !currentExcelPath) return false;
             try {
-                const arrayBuffer = XLSX.write(currentWorkbook, { type: 'array', bookType: 'xlsx', compression: true });
-                return await writeLocalFile(currentExcelPath, arrayBuffer);
+                const plainBuffer = XLSX.write(currentWorkbook, { type: 'array', bookType: 'xlsx', compression: true });
+                let writeBuffer = plainBuffer;
+                if (isEncryptedDataPath(currentExcelPath)) {
+                    const meta = { savedAt: new Date().toISOString(), app: '专用光缆管理系统', version: 'V2.0.0', type: 'data' };
+                    writeBuffer = await encryptBackup(plainBuffer, meta);
+                }
+                return await writeLocalFile(currentExcelPath, writeBuffer);
             } catch (e) { console.error('写回 Excel 失败:', e); return false; }
         }
 
@@ -2578,7 +2853,7 @@
                     await appendLog('well', '修改管井位置：' + (node.desc || node.name) + '（' + newLatLng.lng.toFixed(6) + ',' + newLatLng.lat.toFixed(6) + '）');
                     try { drawMapForce(); } catch (e) {}
                 } else {
-                    alert('保存 Excel 失败，请检查文件是否被占用');
+                    alert('保存失败，请检查文件是否被占用');
                 }
             });
         }
@@ -3355,6 +3630,294 @@
             });
         }
 
+        // ==================== 数据备份逻辑 ====================
+        let backupFolderPath = null;
+
+        function formatBackupTimestamp(d) {
+            const pad = n => String(n).padStart(2, '0');
+            return d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + '_' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
+        }
+
+        function openBackupDialog() {
+            const overlay = document.getElementById('backupOverlay');
+            if (!overlay) return;
+            document.getElementById('backupFolderPath').value = backupFolderPath || '';
+            document.getElementById('backupFileName').value = 'glight_backup_' + formatBackupTimestamp(new Date()) + '.glightbak';
+            document.getElementById('backupConfirmBtn').disabled = !backupFolderPath;
+            const statusEl = document.getElementById('backupStatusText');
+            statusEl.textContent = '';
+            statusEl.className = 'status-text';
+            document.getElementById('backupProgressBar').classList.remove('show');
+            document.getElementById('backupProgressInner').style.width = '0%';
+            overlay.classList.add('show');
+        }
+        function closeBackupDialog() {
+            document.getElementById('backupOverlay').classList.remove('show');
+        }
+
+        async function doBackup() {
+            if (!currentExcelPath) { alert('请先加载数据文件。'); return; }
+            if (!backupFolderPath) { alert('请先选择备份文件夹。'); return; }
+            const statusEl = document.getElementById('backupStatusText');
+            const progressBar = document.getElementById('backupProgressBar');
+            const progressInner = document.getElementById('backupProgressInner');
+            const confirmBtn = document.getElementById('backupConfirmBtn');
+            statusEl.className = 'status-text';
+            statusEl.textContent = '正在读取数据文件...';
+            progressBar.classList.add('show');
+            progressInner.style.width = '20%';
+            confirmBtn.disabled = true;
+            try {
+                let buffer;
+                if (isEncryptedDataPath(currentExcelPath)) {
+                    buffer = await readAndDecryptDataFile(currentExcelPath);
+                } else {
+                    buffer = await readLocalFileAsArrayBuffer(currentExcelPath);
+                }
+                if (!buffer) throw new Error('无法读取数据文件');
+                progressInner.style.width = '50%';
+                statusEl.textContent = '正在加密备份...';
+                const meta = {
+                    exportedAt: new Date().toISOString(),
+                    sourceFile: currentExcelPath,
+                    size: buffer.byteLength,
+                    app: '专用光缆管理系统',
+                    version: 'V2.0.0'
+                };
+                const encrypted = await encryptBackup(buffer, meta);
+                progressInner.style.width = '75%';
+                statusEl.textContent = '正在写入备份文件...';
+                const fileName = document.getElementById('backupFileName').value || ('glight_backup_' + formatBackupTimestamp(new Date()) + '.glightbak');
+                const fullPath = backupFolderPath.replace(/\/+$/, '') + '/' + fileName;
+                const ok = await writeLocalFile(fullPath, encrypted);
+                if (!ok) throw new Error('写入备份文件失败，请检查文件夹权限');
+                progressInner.style.width = '100%';
+                statusEl.className = 'status-text success';
+                statusEl.textContent = '✓ 备份成功！文件已保存至：' + fullPath;
+                await appendLog('cable', '数据备份：' + fullPath);
+                setTimeout(() => { closeBackupDialog(); }, 1500);
+            } catch (e) {
+                console.error('备份失败:', e);
+                statusEl.className = 'status-text error';
+                statusEl.textContent = '✗ 备份失败：' + e.message;
+                progressBar.classList.remove('show');
+            } finally {
+                confirmBtn.disabled = false;
+            }
+        }
+
+        // ==================== 数据导入逻辑 ====================
+        let importFilePath = null;
+
+        function openImportDialog() {
+            const overlay = document.getElementById('importOverlay');
+            if (!overlay) return;
+            document.getElementById('importFilePath').value = importFilePath || '';
+            document.getElementById('importConfirmBtn').disabled = !importFilePath;
+            const statusEl = document.getElementById('importStatusText');
+            statusEl.textContent = '';
+            statusEl.className = 'status-text';
+            document.getElementById('importProgressBar').classList.remove('show');
+            document.getElementById('importProgressInner').style.width = '0%';
+            overlay.classList.add('show');
+        }
+        function closeImportDialog() {
+            document.getElementById('importOverlay').classList.remove('show');
+        }
+
+        async function doImport() {
+            if (!currentWorkbook) { alert('请先加载数据文件，再执行导入。'); return; }
+            if (!importFilePath) { alert('请先选择要导入的文件。'); return; }
+            const statusEl = document.getElementById('importStatusText');
+            const progressBar = document.getElementById('importProgressBar');
+            const progressInner = document.getElementById('importProgressInner');
+            const confirmBtn = document.getElementById('importConfirmBtn');
+            statusEl.className = 'status-text';
+            progressBar.classList.add('show');
+            confirmBtn.disabled = true;
+            try {
+                statusEl.textContent = '正在读取导入文件...';
+                progressInner.style.width = '10%';
+                const buffer = await readLocalFileAsArrayBuffer(importFilePath);
+                if (!buffer) throw new Error('无法读取导入文件');
+                let excelBuffer = buffer;
+                const headBytes = new Uint8Array(buffer.slice(0, 16));
+                const magic = new TextDecoder().decode(headBytes.slice(0, 9));
+                if (magic === BACKUP_MAGIC) {
+                    statusEl.textContent = '检测到本软件加密数据，正在解密...';
+                    progressInner.style.width = '30%';
+                    const result = await decryptBackup(buffer);
+                    excelBuffer = result.data;
+                    statusEl.textContent = '解密成功，正在解析数据...';
+                } else {
+                    statusEl.textContent = '正在解析 Excel 数据...';
+                }
+                progressInner.style.width = '50%';
+                const importWb = XLSX.read(new Uint8Array(excelBuffer), { type: 'array', dense: true, raw: true });
+                const sheetNames = importWb.SheetNames;
+                if (sheetNames.indexOf(ROUTE_SHEET_NAME) === -1 || sheetNames.indexOf(NODE_SHEET_NAME) === -1) {
+                    throw new Error('导入文件必须包含"路由"和"节点"两个工作表');
+                }
+                statusEl.textContent = '正在合并数据...';
+                progressInner.style.width = '70%';
+                const mergeStats = mergeImportWorkbook(importWb);
+                statusEl.textContent = '正在写回数据文件...';
+                progressInner.style.width = '90%';
+                const saved = await saveWorkbookToFile();
+                if (!saved) throw new Error('写回数据文件失败，请检查文件是否被占用');
+                progressInner.style.width = '100%';
+                statusEl.className = 'status-text success';
+                statusEl.textContent = '✓ 导入完成！新增节点 ' + mergeStats.addedNodes + ' 个，新增光缆 ' + mergeStats.addedRoutes + ' 条；' +
+                    '跳过重复节点 ' + mergeStats.skippedNodes + ' 个，跳过重复光缆 ' + mergeStats.skippedRoutes + ' 条。';
+                await appendLog('cable', '数据导入：' + importFilePath +
+                    '（新增节点 ' + mergeStats.addedNodes + '，新增光缆 ' + mergeStats.addedRoutes +
+                    '，跳过节点 ' + mergeStats.skippedNodes + '，跳过光缆 ' + mergeStats.skippedRoutes + '）');
+                setTimeout(() => { closeImportDialog(); }, 3000);
+            } catch (e) {
+                console.error('导入失败:', e);
+                statusEl.className = 'status-text error';
+                statusEl.textContent = '✗ 导入失败：' + e.message;
+                progressBar.classList.remove('show');
+            } finally {
+                confirmBtn.disabled = false;
+            }
+        }
+
+        // 合并导入的 Workbook 到 currentWorkbook（按名称去重，新增合并）
+        function mergeImportWorkbook(importWb) {
+            const stats = { addedNodes: 0, addedRoutes: 0, skippedNodes: 0, skippedRoutes: 0 };
+            // ---- 通用：从 sheet 里按行列号读值（兼容 dense / 非 dense）----
+            function getSheetCell(sheet, r, c) {
+                try {
+                    if (sheet['!data']) {
+                        const row = sheet['!data'][r];
+                        if (!row) return '';
+                        const cell = row[c];
+                        if (!cell) return '';
+                        return String(cell.v === undefined || cell.v === null ? '' : cell.v).trim();
+                    } else {
+                        const ref = XLSX.utils.encode_cell({ r: r, c: c });
+                        const cell = sheet[ref];
+                        if (!cell) return '';
+                        return String(cell.v === undefined || cell.v === null ? '' : cell.v).trim();
+                    }
+                } catch (e) { return ''; }
+            }
+
+            // ---- 1. 读取导入文件的节点表 ----
+            const impNodeSheet = importWb.Sheets[NODE_SHEET_NAME];
+            if (!impNodeSheet) throw new Error('导入文件缺少"' + NODE_SHEET_NAME + '"工作表');
+            const impNodeRange = XLSX.utils.decode_range(impNodeSheet['!ref'] || 'A1:E1');
+            const impNodeList = [];
+            let impNodeStartRow = impNodeRange.s.r;
+            {
+                const headerText = [
+                    getSheetCell(impNodeSheet, impNodeStartRow, 0),
+                    getSheetCell(impNodeSheet, impNodeStartRow, 1),
+                    getSheetCell(impNodeSheet, impNodeStartRow, 2),
+                    getSheetCell(impNodeSheet, impNodeStartRow, 3),
+                    getSheetCell(impNodeSheet, impNodeStartRow, 4)
+                ].join(' ');
+                if (/管井编号|管井名称|纬度|经度|重要信息/i.test(headerText) || /管井编号|管井名称|lat|lng|说明/i.test(headerText)) {
+                    impNodeStartRow = impNodeRange.s.r + 1;
+                }
+            }
+            for (let r = impNodeStartRow; r <= impNodeRange.e.r; r++) {
+                const name = getSheetCell(impNodeSheet, r, NODE_NAME_IDX);
+                const desc = getSheetCell(impNodeSheet, r, NODE_DESC_IDX);
+                if (desc === '') continue;
+                const lngStr = getSheetCell(impNodeSheet, r, NODE_LNG_IDX);
+                const latStr = getSheetCell(impNodeSheet, r, NODE_LAT_IDX);
+                const lng = parseFloat(lngStr);
+                const lat = parseFloat(latStr);
+                if (isNaN(lat) || isNaN(lng)) continue;
+                const info = getSheetCell(impNodeSheet, r, NODE_INFO_IDX);
+                impNodeList.push({ name, desc, lng, lat, info });
+            }
+
+            // ---- 2. 读取导入文件的路由表 ----
+            const impRouteSheet = importWb.Sheets[ROUTE_SHEET_NAME];
+            if (!impRouteSheet) throw new Error('导入文件缺少"' + ROUTE_SHEET_NAME + '"工作表');
+            const impRouteRange = XLSX.utils.decode_range(impRouteSheet['!ref'] || 'A1:A1');
+            const impRouteList = [];
+            let impRouteStartRow = impRouteRange.s.r;
+            {
+                const headerText = [
+                    getSheetCell(impRouteSheet, impRouteStartRow, 0),
+                    getSheetCell(impRouteSheet, impRouteStartRow, 1),
+                    getSheetCell(impRouteSheet, impRouteStartRow, 2)
+                ].join(' ');
+                if (/类别|光缆|名称|文件名/i.test(headerText)) {
+                    impRouteStartRow = impRouteRange.s.r + 1;
+                }
+            }
+            for (let r = impRouteStartRow; r <= impRouteRange.e.r; r++) {
+                const category = getSheetCell(impRouteSheet, r, ROUTE_CATEGORY_IDX);
+                const cableName = getSheetCell(impRouteSheet, r, ROUTE_NAME_IDX);
+                if (cableName === '') continue;
+                const filename = getSheetCell(impRouteSheet, r, ROUTE_FILE_IDX);
+                const points = [];
+                for (let c = ROUTE_NODE_START_IDX; c <= impRouteRange.e.c; c++) {
+                    const nodeName = getSheetCell(impRouteSheet, r, c);
+                    if (nodeName === '') continue;
+                    points.push(nodeName);
+                }
+                if (points.length >= 2) impRouteList.push({ category: category || '未分类', cableName, filename, points });
+            }
+
+            // ---- 3. 合并节点（按 desc 去重）----
+            for (const node of impNodeList) {
+                if (nodeDescToRowIndex.has(node.desc)) {
+                    stats.skippedNodes++;
+                    continue;
+                }
+                const newRowIdx = appendNodeSheetRow(node.name, node.desc, node.lng, node.lat, node.info);
+                if (newRowIdx >= 0) {
+                    nodeDescToRowIndex.set(node.desc, newRowIdx);
+                    if (node.name && !nodeNameToRowIndex.has(node.name)) nodeNameToRowIndex.set(node.name, newRowIdx);
+                    globalNodeRows.push({ name: node.name, lng: node.lng, lat: node.lat, desc: node.desc, info: node.info, rowIndex: newRowIdx });
+                    stats.addedNodes++;
+                }
+            }
+
+            // ---- 4. 合并路由（按 cableName 去重）----
+            for (const route of impRouteList) {
+                if (allRoutesData[route.cableName]) {
+                    stats.skippedRoutes++;
+                    continue;
+                }
+                const validPoints = route.points.filter(n => nodeDescToRowIndex.has(n));
+                if (validPoints.length < 2) {
+                    stats.skippedRoutes++;
+                    continue;
+                }
+                const newRowIdx = appendRouteSheetRow(route.category, route.cableName, route.filename, validPoints.map(n => ({ name: n })));
+                if (newRowIdx >= 0) {
+                    const pts = [];
+                    validPoints.forEach(n => {
+                        const gRow = globalNodeRows.find(gr => gr.desc === n);
+                        if (gRow) pts.push({ lat: gRow.lat, lng: gRow.lng, name: gRow.desc, desc: gRow.desc, info: gRow.info || '' });
+                    });
+                    if (pts.length >= 2) {
+                        allRoutesData[route.cableName] = {
+                            points: pts,
+                            filename: route.filename,
+                            category: route.category,
+                            rowText: (route.category + ' ' + route.cableName + ' ' + route.filename + ' ' + validPoints.join(' ')).toLowerCase()
+                        };
+                        if (routeOrderList.indexOf(route.cableName) === -1) routeOrderList.push(route.cableName);
+                        if (categoryOrderList.indexOf(route.category) === -1) categoryOrderList.push(route.category);
+                        cableNameToRowIndex.set(route.cableName, newRowIdx);
+                        stats.addedRoutes++;
+                    }
+                }
+            }
+            _countCache = null; _countCacheKey = ''; _searchIndexDirty = true;
+            generateRouteControls();
+            drawMapForce();
+            return stats;
+        }
+
         function bindUIEvents() {
             const on = (id, event, handler) => {
                 const el = document.getElementById(id);
@@ -3504,6 +4067,70 @@
             on('aboutBtn', 'click', openAboutDialog);
             on('aboutCloseBtn', 'click', closeAboutDialog);
 
+            // ===== 主动加密当前数据文件 =====
+            on('encryptDataBtn', 'click', async function() {
+                if (!currentExcelPath) { alert('请先加载数据文件。'); return; }
+                if (isEncryptedDataPath(currentExcelPath)) { alert('当前数据文件已经是加密状态。'); return; }
+                const ok = confirm(
+                    '确定要将当前数据文件加密存储吗？\n\n' +
+                    '加密后：\n' +
+                    '  • 原 Excel 文件将被删除\n' +
+                    '  • 数据文件后缀变为 .glightdata\n' +
+                    '  • 只能用本软件打开\n\n' +
+                    '请务必先自行备份原始 Excel 文件！'
+                );
+                if (!ok) return;
+                try {
+                    const plainBuf = await readLocalFileAsArrayBuffer(currentExcelPath);
+                    if (!plainBuf) throw new Error('无法读取原 Excel 文件');
+                    const encPath = toEncryptedDataPath(currentExcelPath);
+                    const meta = { exportedAt: new Date().toISOString(), sourceFile: currentExcelPath, size: plainBuf.byteLength, app: '专用光缆管理系统', version: 'V2.0.0', type: 'data' };
+                    const encrypted = await encryptBackup(plainBuf, meta);
+                    const writeOk = await writeLocalFile(encPath, encrypted);
+                    if (!writeOk) throw new Error('写入加密数据文件失败');
+                    const oldPath = currentExcelPath;
+                    const delOk = await deleteLocalFile(oldPath);
+                    const cfg = await loadConfig();
+                    cfg.excelPath = encPath;
+                    await saveConfig(cfg);
+                    currentExcelPath = encPath;
+                    await appendLog('cable', '数据文件已加密：' + encPath);
+                    alert('加密成功！\n新文件：' + encPath + (delOk ? '\n原文件已删除。' : '\n（原文件删除失败，请手动删除：' + oldPath + '）'));
+                } catch (e) {
+                    console.error('加密失败:', e);
+                    alert('加密失败：' + e.message);
+                }
+            });
+
+            // ===== 数据备份 =====
+            on('backupBtn', 'click', openBackupDialog);
+            on('backupCancelBtn', 'click', closeBackupDialog);
+            on('backupSelectFolderBtn', 'click', async function() {
+                const selected = await openNativeDialog('folder', { title: '请选择备份文件夹' });
+                if (!selected) return;
+                backupFolderPath = selected.replace(/\\/g, '/').replace(/\/+$/, '');
+                document.getElementById('backupFolderPath').value = backupFolderPath;
+                document.getElementById('backupConfirmBtn').disabled = false;
+            });
+            on('backupConfirmBtn', 'click', doBackup);
+
+            // ===== 数据导入 =====
+            on('importBtn', 'click', openImportDialog);
+            on('importCancelBtn', 'click', closeImportDialog);
+            on('importSelectFileBtn', 'click', async function() {
+                const selected = await openNativeDialog('file', {
+                    title: '请选择要导入的文件',
+                    filters: [
+                        { name: '备份、数据或 Excel 文件', extensions: ['glightbak', 'glightdata', 'xlsx', 'xls'] }
+                    ]
+                });
+                if (!selected) return;
+                importFilePath = selected.replace(/\\/g, '/');
+                document.getElementById('importFilePath').value = importFilePath;
+                document.getElementById('importConfirmBtn').disabled = false;
+            });
+            on('importConfirmBtn', 'click', doImport);
+
             window.addEventListener('pagehide', function() {
                 _escapeHtmlCache.clear();
                 _labelWidthCache.clear();
@@ -3567,7 +4194,6 @@
             }
         }
 
-        // ==================== 手动合成打印 canvas ====================
         function compositePrintCanvas() {
             return new Promise(function(resolve, reject) {
                 try {
@@ -3644,7 +4270,6 @@
             });
         }
 
-        // ==================== 打印 ====================
         function doPrint() {
             const wasFsMode = document.body.classList.contains('fullscreen-mode');
             const visibleIds = Object.keys(allRoutesData).filter(function(id) { return routeVisibility[id] === true; });
@@ -3738,12 +4363,26 @@
             })();
         }
 
+        // ==================== 超级管理员可见性控制 ====================
+        function applyAdminVisibility() {
+            const ids = ['mapPathBtn', 'docPathBtn', 'selectFileBtn'];
+            ids.forEach(function(id) {
+                const el = document.getElementById(id);
+                if (el) el.style.display = isSuperAdmin ? '' : 'none';
+            });
+        }
+
         // ==================== 启动流程：先登录，再初始化软件 ====================
         let __appInitialized = false;
         function startAppAfterLogin() {
             if (__appInitialized) return;
             __appInitialized = true;
-            try { bindUIEvents(); initMap(); scheduleLogTrim(); }
+            try {
+                bindUIEvents();
+                initMap();
+                scheduleLogTrim();
+                applyAdminVisibility();
+            }
             catch (e) { const el = document.getElementById('bootError'), msgEl = document.getElementById('bootErrorMsg'); if (el && msgEl) { msgEl.textContent = '启动失败：' + e.message + '\n' + (e.stack || ''); el.classList.add('show'); } }
         }
         function showLoginBeforeApp() {
@@ -3752,7 +4391,6 @@
             bindLoginEvents();
             loadLoginPassword();
             setLoginModifyMode(false);
-            // 重写 hideLoginOverlay：登录成功后再初始化软件
             const origHide = hideLoginOverlay;
             window.hideLoginOverlay = function() {
                 origHide();
