@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>文章转语音</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+      background: #f3f6fb;
+      color: #182230;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 28px;
+    }
+
+    main {
+      width: min(720px, 100%);
+      padding: 32px;
+      border: 1px solid #e3e9f2;
+      border-radius: 20px;
+      background: #fff;
+      box-shadow: 0 18px 50px rgb(34 61 100 / 10%);
+    }
+
+    h1 { margin: 0 0 8px; font-size: 26px; }
+    .subtitle { margin: 0 0 26px; color: #667085; line-height: 1.6; }
+
+    label {
+      display: block;
+      margin: 20px 0 8px;
+      font-weight: 600;
+    }
+
+    textarea, select {
+      width: 100%;
+      border: 1px solid #cfd8e6;
+      border-radius: 10px;
+      background: #fff;
+      color: inherit;
+      font: inherit;
+    }
+
+    textarea {
+      min-height: 190px;
+      resize: vertical;
+      padding: 14px;
+      line-height: 1.7;
+    }
+
+    select { padding: 11px 12px; }
+    textarea:focus, select:focus { outline: 3px solid rgb(47 111 237 / 18%); border-color: #2f6fed; }
+
+    .count { margin-top: 6px; color: #667085; text-align: right; font-size: 13px; }
+    .hint { margin: 8px 0 0; color: #667085; font-size: 13px; line-height: 1.5; }
+
+    .settings {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .range-heading { display: flex; justify-content: space-between; align-items: center; }
+    output { color: #2f6fed; font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: #2f6fed; }
+
+    button {
+      width: 100%;
+      margin-top: 26px;
+      padding: 13px 18px;
+      border: 0;
+      border-radius: 10px;
+      background: #2f6fed;
+      color: #fff;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button:hover:not(:disabled) { background: #245cc7; }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+
+    #status {
+      min-height: 24px;
+      margin: 16px 0 0;
+      line-height: 1.5;
+      color: #475467;
+      overflow-wrap: anywhere;
+    }
+
+    #status.success { color: #067647; }
+    #status.error { color: #b42318; }
+
+    @media (max-width: 560px) {
+      body { padding: 12px; }
+      main { padding: 22px; }
+      .settings { grid-template-columns: 1fr; gap: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>文章转语音</h1>
+    <p class="subtitle">使用 Windows 10/11 已安装的语音包，将 500 字以内的文章保存为 WAV 音频。</p>
+
+    <label for="article">文章内容</label>
+    <textarea id="article" maxlength="500" placeholder="请输入不超过 500 字的文章……"></textarea>
+    <div class="count"><span id="count">0</span>/500</div>
+
+    <label for="voice">朗读者</label>
+    <select id="voice" disabled="">
+      <option>正在读取 Windows 语音包……</option>
+    </select>
+    <p class="hint">列表只显示系统已安装的语音。可在 Windows“设置 → 时间和语言 → 语音”中添加更多语音。</p>
+
+    <div class="settings">
+      <div>
+        <div class="range-heading">
+          <label for="rate">语速</label>
+          <output id="rateValue" for="rate">正常 (0)</output>
+        </div>
+        <input id="rate" type="range" min="-10" max="10" step="1" value="0">
+        <p class="hint">-10 最慢，0 正常，10 最快</p>
+      </div>
+      <div>
+        <div class="range-heading">
+          <label for="volume">音量</label>
+          <output id="volumeValue" for="volume">80%</output>
+        </div>
+        <input id="volume" type="range" min="0" max="100" step="1" value="80">
+      </div>
+    </div>
+
+    <button id="generate" type="button" disabled="">生成并保存 WAV</button>
+    <p id="status" role="status" aria-live="polite"></p>
+  </main>
+
+  <script>
+    const article = document.getElementById('article');
+    const voice = document.getElementById('voice');
+    const rate = document.getElementById('rate');
+    const volume = document.getElementById('volume');
+    const rateValue = document.getElementById('rateValue');
+    const volumeValue = document.getElementById('volumeValue');
+    const generate = document.getElementById('generate');
+    const status = document.getElementById('status');
+    const count = document.getElementById('count');
+
+    function bytesToBase64(bytes) {
+      let binary = '';
+      for (const byte of bytes) binary += String.fromCharCode(byte);
+      return btoa(binary);
+    }
+
+    function toBase64(value) {
+      return bytesToBase64(new TextEncoder().encode(value));
+    }
+
+    function fromBase64(value) {
+      const binary = atob(value);
+      const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+      return new TextDecoder().decode(bytes);
+    }
+
+    function encodePowerShell(script) {
+      const bytes = [];
+      for (let index = 0; index < script.length; index++) {
+        const code = script.charCodeAt(index);
+        bytes.push(code & 0xff, code >> 8);
+      }
+      return bytesToBase64(bytes);
+    }
+
+    async function runPowerShell(script) {
+      const command = `powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${encodePowerShell(script)}`;
+      const result = await window.__TAURI__.core.invoke('run_command', { command });
+
+      if (typeof result === 'string') return result.trim();
+      if (result && typeof result === 'object') {
+        const code = result.code ?? 0;
+        if (code !== 0) throw new Error(result.stderr || `PowerShell 执行失败（退出码 ${code}）`);
+        return String(result.stdout ?? result.output ?? '').trim();
+      }
+      return String(result ?? '').trim();
+    }
+
+    function setStatus(message, type = '') {
+      status.textContent = message;
+      status.className = type;
+    }
+
+    function updateGenerateState() {
+      generate.disabled = voice.disabled || !voice.value || !article.value.trim();
+    }
+
+    async function loadVoices() {
+      voice.disabled = true;
+      generate.disabled = true;
+      voice.innerHTML = '<option>正在读取 Windows 语音包……</option>';
+
+      const script = `
+        Add-Type -AssemblyName System.Speech;
+        $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer;
+        try {
+          $voices = @($synth.GetInstalledVoices() | ForEach-Object {
+            [PSCustomObject]@{
+              Name = $_.VoiceInfo.Name;
+              Culture = $_.VoiceInfo.Culture.Name;
+              Gender = [string]$_.VoiceInfo.Gender
+            }
+          });
+          $json = $voices | ConvertTo-Json -Compress;
+          if ($null -eq $json) { $json = '[]'; }
+          [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes([string]$json));
+        } finally {
+          $synth.Dispose();
+        }
+      `;
+
+      try {
+        const output = await runPowerShell(script);
+        const parsed = output ? JSON.parse(fromBase64(output)) : [];
+        const voices = Array.isArray(parsed) ? parsed : [parsed];
+        voice.innerHTML = '';
+
+        if (!voices.length) {
+          voice.innerHTML = '<option value="">未检测到已安装的语音包</option>';
+          setStatus('请先在 Windows 中安装语音包。', 'error');
+          return;
+        }
+
+        for (const item of voices) {
+          const option = document.createElement('option');
+          option.value = item.Name;
+          option.textContent = `${item.Name}（${item.Culture}，${item.Gender}）`;
+          voice.appendChild(option);
+        }
+
+        const chineseVoice = voices.find(item => item.Culture.toLowerCase().startsWith('zh'));
+        if (chineseVoice) voice.value = chineseVoice.Name;
+        voice.disabled = false;
+        setStatus(`已检测到 ${voices.length} 个朗读者。`);
+      } catch (error) {
+        const message = error.message || String(error);
+        const detail = message.includes('not allowed by ACL')
+          ? '缺少命令权限，请在 PakePlus 的 capability 配置中添加 allow-run_command。'
+          : message;
+        voice.innerHTML = '<option value="">语音包读取失败</option>';
+        setStatus(`无法读取 Windows 语音包：${detail}`, 'error');
+      }
+
+      updateGenerateState();
+    }
+
+    article.addEventListener('input', () => {
+      count.textContent = article.value.length;
+      updateGenerateState();
+    });
+
+    rate.addEventListener('input', () => {
+      const value = Number(rate.value);
+      rateValue.textContent = value === 0 ? '正常 (0)' : `${value > 0 ? '加快' : '减慢'} (${value})`;
+    });
+
+    volume.addEventListener('input', () => {
+      volumeValue.textContent = `${volume.value}%`;
+    });
+
+    generate.addEventListener('click', async () => {
+      const text = article.value.trim();
+      if (!text || text.length > 500 || !voice.value) {
+        setStatus('请输入 1～500 字的文章并选择朗读者。', 'error');
+        return;
+      }
+
+      try {
+        const suggestedName = `文章语音-${new Date().toISOString().slice(0, 10)}.wav`;
+        if (!window.__TAURI__.dialog?.save) throw new Error('当前 PakePlus 版本未提供保存对话框 API');
+        let outputPath = await window.__TAURI__.dialog.save({
+          title: '保存 WAV 语音',
+          defaultPath: suggestedName,
+          filters: [{ name: 'WAV 音频', extensions: ['wav'] }]
+        });
+        if (!outputPath) {
+          setStatus('已取消保存。');
+          return;
+        }
+        if (!outputPath.toLowerCase().endsWith('.wav')) outputPath += '.wav';
+
+        generate.disabled = true;
+        generate.textContent = '正在生成语音……';
+        setStatus('正在调用 Windows 语音包，请稍候。');
+
+        const script = `
+          Add-Type -AssemblyName System.Speech;
+          $text = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${toBase64(text)}'));
+          $voiceName = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${toBase64(voice.value)}'));
+          $outputPath = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${toBase64(outputPath)}'));
+          $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer;
+          try {
+            $synth.SelectVoice($voiceName);
+            $synth.Rate = ${Number(rate.value)};
+            $synth.Volume = ${Number(volume.value)};
+            $synth.SetOutputToWaveFile($outputPath);
+            $synth.Speak($text);
+          } finally {
+            $synth.Dispose();
+          }
+        `;
+
+        await runPowerShell(script);
+        setStatus(`语音已保存到：${outputPath}`, 'success');
+      } catch (error) {
+        setStatus(`生成失败：${error.message || String(error)}`, 'error');
+      } finally {
+        generate.textContent = '生成并保存 WAV';
+        updateGenerateState();
+      }
+    });
+
+    if (window.__TAURI__?.core?.invoke) {
+      loadVoices();
+    } else {
+      voice.innerHTML = '<option value="">请在 PakePlus 中运行</option>';
+      setStatus('未检测到 Tauri API。请在 PakePlus 更多配置中开启“TauriApi”后预览或打包。', 'error');
+    }
+  </script>
+
+
+</body></html>
