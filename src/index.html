@@ -840,7 +840,7 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
       </div>
       <div class="help-about">
         <span>软件版本：<b>v1.0.0</b></span>
-        <span>著作权人：<b>周武海</b></span>
+        <span>开发者：<b>周武海</b></span>
         <span>联系邮箱：<a href="mailto:3584650@qq.com">3584650@qq.com</a></span>
       </div>
       <div class="modal-actions">
@@ -1168,12 +1168,23 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
       return this.tracks.reduce((arr, t) => arr.concat(t.items.map(i => ({ track: t, item: i }))), []);
     },
     duration() {
+      // 热点函数（播放时每帧多次调用）：直接遍历，不创建中间数组，减少 GC 压力
       let d = 0;
-      this.allItems().forEach(({ item }) => { d = Math.max(d, item.start + item.duration); });
+      for (let i = 0; i < this.tracks.length; i++) {
+        const items = this.tracks[i].items;
+        for (let j = 0; j < items.length; j++) {
+          const end = items[j].start + items[j].duration;
+          if (end > d) d = end;
+        }
+      }
       return d;
     },
     viewDuration() { return Math.max(30, this.duration() + 2); },
-    itemCount() { return this.allItems().length; },
+    itemCount() {
+      let n = 0;
+      for (let i = 0; i < this.tracks.length; i++) n += this.tracks[i].items.length;
+      return n;
+    },
 
     selected() {
       if (!this.selection) return null;
@@ -1549,6 +1560,20 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
     increment: 0
   };
 
+  // 素材快照：媒体元素 / 解码数据 / 缩略图 / 波形都是只读的重资源，
+  // 直接按引用保留，只对轻量元数据做深拷贝，避免每次撤销都快照几百 KB 的 base64 与波形数组。
+  const ASSET_SHARED_KEYS = ['url', 'file', 'blob', 'el', 'img', 'buffer', 'thumb', 'peaks'];
+  function cloneAsset(a) {
+    const c = {};
+    for (const key in a) {
+      if (ASSET_SHARED_KEYS.indexOf(key) >= 0) continue;
+      c[key] = a[key];
+    }
+    const copy = JSON.parse(JSON.stringify(c));
+    ASSET_SHARED_KEYS.forEach(key => { if (a[key] !== undefined) copy[key] = a[key]; });
+    return copy;
+  }
+
   // ---------- undo / redo history ----------
   const history = store.history = {
     stack: [],
@@ -1562,12 +1587,7 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
         tracks: store.tracks.map(t => ({ id: t.id, items: JSON.parse(JSON.stringify(t.items)) })),
         selection: store.selection ? { ...store.selection } : null,
         masterVolume: store.masterVolume,
-        assets: store.assets.map(a => {
-          const { url, file, blob, ...rest } = a;
-          const c = JSON.parse(JSON.stringify(rest));
-          c.url = url; c.file = file; c.blob = blob;
-          return c;
-        })
+        assets: store.assets.map(cloneAsset)
       };
     },
     _apply(snap) {
@@ -1575,12 +1595,7 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
       store.tracks.forEach((t, i) => { t.items = JSON.parse(JSON.stringify(snap.tracks[i].items)); });
       store.selection = snap.selection ? { ...snap.selection } : null;
       store.masterVolume = snap.masterVolume;
-      store.assets = snap.assets.map(a => {
-        const { url, file, blob, ...rest } = a;
-        const c = JSON.parse(JSON.stringify(rest));
-        c.url = url; c.file = file; c.blob = blob;
-        return c;
-      });
+      store.assets = snap.assets.map(cloneAsset);
     },
     _sig(snap) {
       // 快速结构签名：各轨片段数 + 素材数 + 项目尺寸
@@ -1596,38 +1611,48 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
     },
     push() {
       if (this.restoring) return;
+      // 合并短时间内的连续变更（批量插入、连续拖动等），避免每次变更都深拷贝整个工程
       if (this._timer) clearTimeout(this._timer);
       this._timer = setTimeout(() => {
         this._timer = null;
-        const snap = this.snapshot();
-        const last = this.stack[this.stack.length - 1];
-        if (last) {
-          // 先比结构签名（快），结构相同再比选中片段关键字段
-          if (this._sig(last) === this._sig(snap)) {
-            const sel = snap.selection;
-            let same = true;
-            if (sel) {
-              const trk = snap.tracks.find(t => t.id === sel.trackId);
-              const ltrk = last.tracks.find(t => t.id === sel.trackId);
-              const it = trk && trk.items.find(i => i.id === sel.itemId);
-              const lit = ltrk && ltrk.items.find(i => i.id === sel.itemId);
-              if (this._itemKey(it) !== this._itemKey(lit)) same = false;
-            }
-            // 项目参数变化也需记录
-            if (same && (last.project.bg !== snap.project.bg ||
-              last.project.fps !== snap.project.fps)) same = false;
-            if (same && last.masterVolume !== snap.masterVolume) same = false;
-            if (same) return;
+        this._record();
+      }, 180);
+    },
+    _record() {
+      const snap = this.snapshot();
+      const last = this.stack[this.stack.length - 1];
+      if (last) {
+        // 先比结构签名（快），结构相同再比选中片段关键字段
+        if (this._sig(last) === this._sig(snap)) {
+          const sel = snap.selection;
+          let same = true;
+          if (sel) {
+            const trk = snap.tracks.find(t => t.id === sel.trackId);
+            const ltrk = last.tracks.find(t => t.id === sel.trackId);
+            const it = trk && trk.items.find(i => i.id === sel.itemId);
+            const lit = ltrk && ltrk.items.find(i => i.id === sel.itemId);
+            if (this._itemKey(it) !== this._itemKey(lit)) same = false;
           }
+          // 项目参数变化也需记录
+          if (same && (last.project.bg !== snap.project.bg ||
+            last.project.fps !== snap.project.fps)) same = false;
+          if (same && last.masterVolume !== snap.masterVolume) same = false;
+          if (same) return;
         }
-        this.stack.push(snap);
-        if (this.stack.length > this.max) this.stack.shift();
-        this.redoStack = [];
-      }, 0);
+      }
+      this.stack.push(snap);
+      if (this.stack.length > this.max) this.stack.shift();
+      this.redoStack = [];
+    },
+    _flush() {
+      if (!this._timer) return;
+      clearTimeout(this._timer);
+      this._timer = null;
+      this._record();
     },
     undo() {
+      this._flush();
       if (this.stack.length <= 1) { u.toast('已到最早一步', 'info', 1200); return; }
-      if (this._timer) { clearTimeout(this._timer); this._timer = null; }
       const cur = this.stack.pop();
       this.redoStack.push(cur);
       const prev = this.stack[this.stack.length - 1];
@@ -1640,6 +1665,7 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
       u.toast('已撤销', 'info', 1000);
     },
     redo() {
+      this._flush();
       if (this.redoStack.length === 0) { u.toast('没有可重做的操作', 'info', 1200); return; }
       const next = this.redoStack.pop();
       this.stack.push(next);
@@ -1724,6 +1750,23 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
   const FC = window.FC, u = FC.u, store = FC.store;
 
   const wrapCache = new Map();
+  // 文本拆行缓存：按片段对象缓存，文本变化才重新拆（播放时避免每帧正则拆分与数组分配）
+  const splitCache = new WeakMap();
+  const subCache = new WeakMap();
+  function splitFor(item, text) {
+    const c = splitCache.get(item);
+    if (c && c.src === text) return c.lines;
+    const lines = String(text).split('\n');
+    splitCache.set(item, { src: text, lines });
+    return lines;
+  }
+  function splitSub(item, text) {
+    const c = subCache.get(item);
+    if (c && c.src === text) return c.lines;
+    const lines = u.splitLines(text);
+    subCache.set(item, { src: text, lines });
+    return lines;
+  }
 
   const render = FC.render = {
     canvas: null,
@@ -1754,6 +1797,7 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
       this.overlay.height = p.height;
       this.ctx = this.canvas.getContext('2d');
       this.octx = this.overlay.getContext('2d');
+      this._overlayDirty = false;
       this.fitStage();
       document.getElementById('project-meta').textContent = p.width + ' × ' + p.height + ' · ' + p.fps + 'fps';
     },
@@ -1865,7 +1909,7 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
       ctx.font = font;
       if ('letterSpacing' in ctx) ctx.letterSpacing = (item.letterSpacing || 0) + 'px';
       const maxW = W * 0.9;
-      let lines = item.text ? item.text.split('\n') : [''];
+      let lines = item.text ? splitFor(item, item.text) : [''];
       lines = lines.map(l => wrapLine(ctx, l, maxW, item, font, maxW));
       let out = [];
       lines.forEach(group => { group.forEach(l => out.push(l)); });
@@ -1931,7 +1975,7 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
     drawSubtitle(ctx, item, t, W, H) {
       const srcLines = (item.lines && item.lines.length)
         ? item.lines
-        : u.splitLines(item.text);
+        : splitSub(item, item.text);
       if (!srcLines.length) return;
       // 旧工程里的「逐行显示」已取消，按静态多行渲染
       const mode = item.mode === 'line' ? 'static' : (item.mode || 'scroll');
@@ -1941,7 +1985,6 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
       const baseAlpha = u.clamp(item.opacity == null ? 1 : item.opacity, 0, 1);
       if (baseAlpha <= 0) return;
       const maxW = W * (mode === 'scroll' ? 0.9 : 0.86);
-      const sizeStep = 2;
       let fontSize = item.fontSize || 44;
       let font = fontString(item, fontSize);
       let lh = fontSize * (item.lineHeight || 1.7);
@@ -1957,20 +2000,14 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
       if (mode === 'marquee') {
         // 跑马灯：所有文本合并为一条水平滚动的字幕
         lines = [srcLines.join('　　')];
+      } else if (mode === 'static') {
+        // 静态多行：内容过多时整体缩小字号（结果按内容缓存，避免每帧重复试算）
+        const fit = fitStaticText(item, srcLines, ctx, maxW, H, fontSize);
+        fontSize = fit.fontSize; font = fit.font; lh = fit.lh; lines = fit.lines;
+        ctx.font = font;
+        if ('letterSpacing' in ctx) ctx.letterSpacing = (item.letterSpacing || 0) + 'px';
       } else {
         lines = wrapLines(ctx, srcLines, maxW, item, font, maxW);
-        if (mode === 'static') {
-          // 静态多行：内容过多时整体缩小字号，确保全部落在画面内
-          let guard = 0;
-          while (lh * lines.length > H * 0.92 && fontSize > 12 && guard++ < 200) {
-            fontSize -= sizeStep;
-            font = fontString(item, fontSize);
-            ctx.font = font;
-            ctx.letterSpacing = (item.letterSpacing || 0) + 'px';
-            lh = fontSize * (item.lineHeight || 1.7);
-            lines = wrapLines(ctx, srcLines, maxW, item, font, maxW);
-          }
-        }
       }
 
       const totalH = lh * lines.length;
@@ -2032,10 +2069,22 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
     drawOverlay(t) {
       const ctx = this.octx;
       const W = store.project.width, H = store.project.height;
+      const sel = store.selected();
+      const hasGuides = this.guides.x || this.guides.y;
+      if (!sel && !hasGuides) {
+        // 没有叠加内容时只清理一次，避免每帧对整块 1920×1080 叠加层做 clearRect
+        if (this._overlayDirty) {
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.clearRect(0, 0, W, H);
+          this._overlayDirty = false;
+        }
+        updateMovable(false);
+        return;
+      }
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, W, H);
-      const sel = store.selected();
-      if (this.guides.x || this.guides.y) {
+      this._overlayDirty = true;
+      if (hasGuides) {
         ctx.save();
         ctx.strokeStyle = 'rgba(255,255,255,.45)';
         ctx.lineWidth = 1.5;
@@ -2087,8 +2136,11 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
   };
 
   function updateMovable(on) {
+    on = !!on;
+    if (render._movableOn === on) return;
+    render._movableOn = on;
     const f = document.getElementById('stage-frame');
-    if (f) f.classList.toggle('movable', !!on);
+    if (f) f.classList.toggle('movable', on);
   }
   function fitSize(sw, sh, W, H, cover) {
     const r = cover ? Math.max(W / sw, H / sh) : Math.min(W / sw, H / sh);
@@ -2096,6 +2148,33 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
   }
   function fontString(item, size) {
     return `${item.italic ? 'italic ' : ''}${item.bold ? '700 ' : '500 '}${Math.round(size)}px ${item.fontFamily || 'sans-serif'}`;
+  }
+  // 静态字幕自适应缩字：按「片段 + 内容 + 画幅」缓存结果，播放时不再逐帧试算
+  const fitCache = new Map();
+  function fitStaticText(item, srcLines, ctx, maxW, H, baseSize) {
+    const key = item.id + '|' + H + '|' + Math.round(maxW) + '|' + baseSize + '|' +
+      (item.lineHeight || 1.7) + '|' + (item.letterSpacing || 0) + '|' +
+      (item.fontFamily || '') + '|' + (item.bold ? 1 : 0) + (item.italic ? 1 : 0) + '|' +
+      srcLines.join('\n');
+    const hit = fitCache.get(key);
+    if (hit) return hit;
+    let fontSize = baseSize;
+    let font = fontString(item, fontSize);
+    let lh = fontSize * (item.lineHeight || 1.7);
+    let lines = wrapLines(ctx, srcLines, maxW, item, font, maxW);
+    let guard = 0;
+    while (lh * lines.length > H * 0.92 && fontSize > 12 && guard++ < 200) {
+      fontSize -= 2;
+      font = fontString(item, fontSize);
+      ctx.font = font;
+      if ('letterSpacing' in ctx) ctx.letterSpacing = (item.letterSpacing || 0) + 'px';
+      lh = fontSize * (item.lineHeight || 1.7);
+      lines = wrapLines(ctx, srcLines, maxW, item, font, maxW);
+    }
+    const res = { fontSize, font, lh, lines };
+    if (fitCache.size > 80) fitCache.delete(fitCache.keys().next().value);
+    fitCache.set(key, res);
+    return res;
   }
   function wrapLines(ctx, srcLines, maxW, item, font, maxWidth) {
     const out = [];
@@ -2180,6 +2259,8 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
 (function () {
   const FC = window.FC, u = FC.u, store = FC.store, audio = FC.audio;
 
+  const MEDIA_TRACKS = ['video', 'audio', 'voice'];
+
   const player = FC.player = {
     playing: false,
     startedMedia: new Set(),
@@ -2215,15 +2296,19 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
       }
     },
     pauseAllMedia() {
-      // 只暂停正在播放的媒体元素，避免遍历全部素材
-      const all = store.allItems();
-      this.startedMedia.forEach(key => {
-        const entry = all.find(e => e.item.id === key);
-        if (!entry) return;
-        const asset = store.asset(entry.item.assetId);
-        if (asset && asset.el) { try { asset.el.pause(); } catch (e) {} }
-      });
-      this.startedMedia.clear();
+      // 只暂停正在播放的片段对应的媒体元素，不构造中间数组
+      const started = this.startedMedia;
+      for (let i = 0; i < MEDIA_TRACKS.length; i++) {
+        const track = store.track(MEDIA_TRACKS[i]);
+        if (!track) continue;
+        const items = track.items;
+        for (let j = 0; j < items.length; j++) {
+          if (!started.has(items[j].id)) continue;
+          const asset = store.asset(items[j].assetId);
+          if (asset && asset.el) { try { asset.el.pause(); } catch (e) {} }
+        }
+      }
+      started.clear();
       // 兜底：个别素材可能已脱离 startedMedia（如播放中被删除/撤销），确保全部静音
       store.assets.forEach(a => {
         if (a.el && !a.el.paused) { try { a.el.pause(); } catch (e) {} }
@@ -2241,15 +2326,19 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
     syncMedia(t) {
       const now = t;
       // video / voice / audio clips
-      ['video', 'voice', 'audio'].forEach(trackId => {
-        store.track(trackId).items.forEach(item => {
+      for (let i = 0; i < MEDIA_TRACKS.length; i++) {
+        const track = store.track(MEDIA_TRACKS[i]);
+        if (!track) continue;
+        const items = track.items;
+        for (let j = 0; j < items.length; j++) {
+          const item = items[j];
           const asset = store.asset(item.assetId);
-          if (!asset || !asset.el) return;
+          if (!asset || !asset.el) continue;
           const el = asset.el;
           const active = now >= item.start && now < item.start + item.duration;
           const key = item.id;
-          const gain = audio.ensureMedia(el);
           if (active) {
+            const gain = audio.ensureMedia(el);
             const vol = Math.max(0, Math.min(5, item.volume == null ? 1 : item.volume)) *
               this.fadeFactor(item, now) * (item.muted ? 0 : 1);
             if (gain) gain.gain.value = vol;
@@ -2272,16 +2361,21 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
           } else if (this.startedMedia.has(key)) {
             this.startedMedia.delete(key);
             try { el.pause(); } catch (e) {}
+            const gain = audio.ensureMedia(el);
             if (gain) gain.gain.value = 0;
           }
-        });
-      });
+        }
+      }
     },
     syncPaused(t) {
-      ['video', 'voice', 'audio'].forEach(trackId => {
-        store.track(trackId).items.forEach(item => {
+      for (let i = 0; i < MEDIA_TRACKS.length; i++) {
+        const track = store.track(MEDIA_TRACKS[i]);
+        if (!track) continue;
+        const items = track.items;
+        for (let j = 0; j < items.length; j++) {
+          const item = items[j];
           const asset = store.asset(item.assetId);
-          if (!asset || !asset.el) return;
+          if (!asset || !asset.el) continue;
           const el = asset.el;
           const active = t >= item.start && t < item.start + item.duration;
           if (active) {
@@ -2290,8 +2384,8 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
               try { el.currentTime = target; } catch (e) {}
             }
           }
-        });
-      });
+        }
+      }
     },
     tick(t, dt) {
       this.syncMedia(t);
@@ -2318,6 +2412,8 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
     dragging: false,
     _renderQueued: false,
     _rulerKey: '',
+    _viewW: 0,
+    _timeEl: null,
 
     init() {
       this.scroll = document.getElementById('timeline-scroll');
@@ -2326,6 +2422,13 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
       this.tracks = document.getElementById('tracks');
       this.playheadEl = document.getElementById('playhead');
       this.labels = document.getElementById('track-labels');
+      this._timeEl = document.getElementById('time-current');
+      this._viewW = this.scroll.clientWidth;
+      if (window.ResizeObserver) {
+        new ResizeObserver(() => { this._viewW = this.scroll.clientWidth; }).observe(this.scroll);
+      } else {
+        window.addEventListener('resize', () => { this._viewW = this.scroll.clientWidth; });
+      }
 
       this.buildLabels();
       this.bind();
@@ -2457,6 +2560,7 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
       }
     },
     render() {
+      this._viewW = this.scroll.clientWidth;
       const pps = store.zoom;
       const width = Math.max(Math.ceil(store.viewDuration() * pps), this.scroll.clientWidth || 0);
       const secs = width / pps;
@@ -2598,7 +2702,7 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
     },
     setPlayhead(t, fromBus) {
       this.updatePlayheadStyle();
-      document.getElementById('time-current').textContent = u.fmtClock(t);
+      // 时间文本由 app 的 playhead 监听统一刷新，避免每帧重复写 DOM 触发排版
       if (FC.player && FC.player.playing) this.follow();
     },
     updatePlayheadStyle() {
@@ -2608,7 +2712,8 @@ kbd{font-family:inherit;font-size:13px;background:#191f28;border:1px solid #2c35
     follow() {
       const x = store.playhead * store.zoom;
       const left = this.scroll.scrollLeft;
-      const w = this.scroll.clientWidth;
+      // 使用缓存的视口宽度，避免每帧写样式后读 clientWidth 触发同步布局
+      const w = this._viewW || this.scroll.clientWidth;
       if (x > left + w - 70) this.scroll.scrollLeft = x - w + 110;
       else if (x < left + 20) this.scroll.scrollLeft = Math.max(0, x - 80);
     },
@@ -5548,7 +5653,8 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;cursor
       });
 
       if (!this.available()) {
-        this.setTip('浏览器环境不支持调用系统语音：配音功能需在 PakePlus 打包的桌面版中使用。', 'error');
+        const tip = $('tts-tip');
+        if (tip) tip.hidden = true;
         this.fillSelect([], '请在 PakePlus 桌面版中使用');
       } else {
         this.setTip('打开面板后自动读取 Windows 语音包…');
@@ -5604,7 +5710,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;cursor
     { id: 'bg-red', name: '红色警示底', desc: '红色渐变 · 警示' },
     { id: 'bg-blue', name: '蓝色新闻底', desc: '蓝色渐变 · 新闻' },
     { id: 'bg-orange', name: '橙色火情底', desc: '橙色渐变 · 火情' },
-    { id: 'bg-yellow', name: '黄色警戒底', desc: '黄黑斜纹 · 警戒' },
+    { id: 'bg-mud', name: '泥石流褐底', desc: '深褐渐变 · 泥痕质感' },
     { id: 'bg-green', name: '绿色安全底', desc: '绿色渐变 · 安全' },
     { id: 'bg-gray', name: '灰色新闻底', desc: '深灰渐变 · 新闻' },
     { id: 'bg-navy', name: '深蓝科技底', desc: '深蓝 · 科技感' },
@@ -5654,16 +5760,16 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;cursor
       ]
     },
     {
-      id: 'debris', name: '泥石流', theme: 'bg-yellow', accent: '#1a1a1a',
+      id: 'debris', name: '泥石流', theme: 'bg-mud', accent: '#ffd27a',
       segments: [
-        { dur: 8, type: 'opening', title: '泥石流灾害\n应急现场情况' },
+        { dur: 8, type: 'opening', title: '泥石流灾害\n应急现场情况', style: { shadowBlur: 26, bgEnabled: true, bgColor: '#000000', bgOpacity: 0.32 } },
         { dur: 40, type: 'info', title: '时间：X月X日 X时X分\n地点：XX县XX乡\n诱因：持续强降雨引发' },
         { dur: 110, type: 'footage', title: '现场画面', subtitle: '泥石掩埋道路与房屋，交通中断，受灾区域情况紧急' },
         { dur: 170, type: 'rescue', title: '救援行动', subtitle: '救援队伍携带装备徒步进入，搜救失联人员并抢通生命通道' },
         { dur: 120, type: 'leader', title: '领导视察', subtitle: '党政领导赶赴灾区，现场指挥抢险救灾并部署群众转移' },
         { dur: 70, type: 'stats', title: '灾情统计\n失联：X人  受灾：X人\n房屋损毁：X间  道路中断：X处' },
         { dur: 70, type: 'rescue', title: '后续处置', subtitle: '次生灾害监测预警持续，临时安置点物资保障有序发放' },
-        { dur: 12, type: 'closing', title: '抢险救灾\n持续关注' }
+        { dur: 12, type: 'closing', title: '抢险救灾\n持续关注', style: { shadowBlur: 26, bgEnabled: true, bgColor: '#000000', bgOpacity: 0.32 } }
       ]
     },
     {
@@ -5736,7 +5842,12 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;cursor
       bus.on('project', () => { this.invalidate(); });
       bus.on('assets', () => { this.scheduleAssetRefresh(); this.updateEmpty(); });
       bus.on('playhead', t => {
-        $('time-current').textContent = u.fmtClock(t);
+        // 播放时每帧都会触发：文本没变化就不写 DOM，避免无谓排版
+        const text = u.fmtClock(t);
+        if (text !== this._clockText) {
+          this._clockText = text;
+          $('time-current').textContent = text;
+        }
         if (!player.playing) this.invalidate();
       });
       bus.on('transport', playing => {
@@ -5753,6 +5864,8 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;cursor
       });
 
       $('time-total').textContent = u.fmtClock(store.duration());
+      this._clockText = u.fmtClock(store.playhead);
+      $('time-current').textContent = this._clockText;
       this.invalidate();
       this.raf = requestAnimationFrame(ts => this.loop(ts));
 
@@ -5994,12 +6107,12 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;cursor
       this.renderQuickPresets();
     },
     scheduleAssetRefresh() {
-      if (this._assetRefreshQueued) return;
-      this._assetRefreshQueued = true;
-      requestAnimationFrame(() => {
-        this._assetRefreshQueued = false;
+      // 批量导入时会把多次刷新合并成一次，避免反复重建含缩略图的素材列表
+      if (this._assetTimer) return;
+      this._assetTimer = setTimeout(() => {
+        this._assetTimer = null;
         this.refreshAssets();
-      });
+      }, 80);
     },
     renderQuickPresets() {
       const wrap = $('quick-presets');
@@ -6111,15 +6224,33 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;cursor
         case 'bg-purple': g.fillStyle = grad('#3b0764', '#9333ea'); g.fillRect(0, 0, W, H); break;
         case 'bg-darkred': g.fillStyle = grad('#1c0a0a', '#7f1d1d'); g.fillRect(0, 0, W, H); break;
         case 'bg-teal': g.fillStyle = grad('#042f2e', '#0d9488'); g.fillRect(0, 0, W, H); break;
-        case 'bg-yellow': {
-          g.fillStyle = '#1a1a1a'; g.fillRect(0, 0, W, H);
-          const s = 60;
-          g.fillStyle = '#facc15';
-          for (let y = -H; y < H; y += s * 2) {
+        case 'bg-mud': {
+          // 泥石流专用底：深褐土色渐变 + 低透明度泥痕斜纹 + 底部堆积感
+          g.fillStyle = grad('#2b1d13', '#0b0705');
+          g.fillRect(0, 0, W, H);
+          g.save();
+          g.globalAlpha = 0.14;
+          g.fillStyle = '#b1772e';
+          const ms = 170;
+          for (let y = -H; y < H; y += ms * 2) {
             g.beginPath();
-            g.moveTo(0, y); g.lineTo(W, y + H); g.lineTo(W, y + H + s); g.lineTo(0, y + s);
+            g.moveTo(0, y); g.lineTo(W, y + H);
+            g.lineTo(W, y + H + ms * 0.3); g.lineTo(0, y + ms * 0.3);
             g.closePath(); g.fill();
           }
+          g.restore();
+          // 底部泥土堆积
+          const soil = g.createLinearGradient(0, H * 0.6, 0, H);
+          soil.addColorStop(0, 'rgba(92,64,34,0)');
+          soil.addColorStop(1, 'rgba(70,47,24,.6)');
+          g.fillStyle = soil;
+          g.fillRect(0, H * 0.6, W, H * 0.4);
+          // 暗角
+          const mv = g.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, H * 0.95);
+          mv.addColorStop(0, 'rgba(0,0,0,0)');
+          mv.addColorStop(1, 'rgba(0,0,0,.5)');
+          g.fillStyle = mv;
+          g.fillRect(0, 0, W, H);
           break;
         }
       }
@@ -6408,7 +6539,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;cursor
         // title text clip
         if (seg.title) {
           const tx = store.baseItem('text', start, dur, seg.title.split('\n')[0]);
-          Object.assign(tx, { text: seg.title, fontFamily: FONT_FAMILY, ...this.segTextStyle(seg.type, scene.accent) });
+          Object.assign(tx, { text: seg.title, fontFamily: FONT_FAMILY, ...this.segTextStyle(seg.type, scene.accent), ...(seg.style || {}) });
           store.insert('text', tx, { select: false });
         }
         // subtitle clip
